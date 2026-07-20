@@ -14,16 +14,14 @@
 
 """Shimming example for 1D Ising chain."""
 
-from pathlib import Path
 import os
+from pathlib import Path
 
-from dwave.system import DWaveSampler
 import matplotlib.pyplot as plt
-from matplotlib.colors import to_rgb
 import numpy as np
+from dwave.system import DWaveSampler
 
-from dwave.experimental.lattice_utils import lattice, experiment, observable
-from dwave.experimental.lattice_utils.utils import bootstrap, confidence_interval
+from dwave.experimental.lattice_utils import lattice, experiment
 
 # Set up the parameters
 
@@ -90,7 +88,7 @@ for anneal_time in ANNEAL_TIMES:
 
     # Make parameter list. We will only vary anneal time.
     for _ in range(120):
-        done = exp.run_iteration([{"anneal_time": anneal_time}], progress=True)
+        done = exp.run_iteration([{"anneal_time": anneal_time}])
         if done:
             break
 

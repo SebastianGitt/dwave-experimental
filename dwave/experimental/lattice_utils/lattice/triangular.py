@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@
 from collections.abc import Generator, Hashable
 from pathlib import Path
 
+import dimod
 import networkx as nx
 import numpy as np
 from numpy.typing import NDArray
-import dimod
 
-from dwave.experimental.lattice_utils.lattice.lattice import Lattice
 from dwave.experimental.lattice_utils.lattice.embedded_lattice import EmbeddedLattice
+from dwave.experimental.lattice_utils.lattice.lattice import Lattice
 
 __all__ = ['Triangular', 'DimerizedTriangular']
 

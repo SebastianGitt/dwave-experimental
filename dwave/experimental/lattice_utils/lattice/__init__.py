@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dwave.experimental.lattice_utils.lattice.lattice import *
 from dwave.experimental.lattice_utils.lattice.chain import *
-from dwave.experimental.lattice_utils.lattice.optimize import *
-from dwave.experimental.lattice_utils.lattice.triangular import *
-from dwave.experimental.lattice_utils.lattice.orbits import *
 from dwave.experimental.lattice_utils.lattice.embedded_lattice import *
+from dwave.experimental.lattice_utils.lattice.lattice import *
+from dwave.experimental.lattice_utils.lattice.optimize import *
+from dwave.experimental.lattice_utils.lattice.orbits import *
+from dwave.experimental.lattice_utils.lattice.triangular import *

@@ -2,7 +2,19 @@
 features:
   - |
     Add ``dwave.experimental.lattice_utils`` submodule with utilities for
-    constructing lattice graphs (``Chain``, ``Triangular``,
-    ``DimerizedTriangular``, ``EmbeddedLattice``), evaluating physics
+    constructing lattice graphs, evaluating physics
     observables on sample sets, and running shimmed Ising experiments on
     QPU samplers.
+  - |
+    Add lattice graph constructors ``Chain``, ``Triangular``, and
+    ``DimerizedTriangular`` for building common lattice geometries.
+  - |
+    Add the ``EmbeddedLattice`` class for embedding logical lattices onto physical
+    hardware graphs using ordered chains.
+  - |
+    Add the ``Observable`` base class and several observables (e.g. qubit
+    magnetization, coupler correlation, and coupler frustration) for evaluating
+    physics quantities on sample sets.
+  - | 
+    Add the ``Experiment`` class for running shimmed Ising experiments on QPU
+    samplers and collecting observables from the resulting sample sets.

@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +13,16 @@
 # limitations under the License.
 
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, TypeAlias
 
+import dimod
 import numpy as np
 from numpy.typing import NDArray
-import dimod
 
-from dwave.experimental.lattice_utils.lattice import Lattice
+from dwave.experimental.lattice_utils.lattice.lattice import Lattice
 
 __all__ = [
     'Observable',
@@ -53,7 +54,13 @@ class Observable(ABC):
         bqm: dimod.BQM,
         sample_set: dimod.SampleSet,
     ) -> ObservableResult:
-        pass
+        """Compute the observable from the provided sample set.
+
+        Args:
+            experiment: Experiment object containing the context for this observable.
+            bqm: The binary quadratic model corresponding to the problem instance.
+            sample_set: The samples used to compute the observable.
+        """
 
 
 class QubitMagnetization(Observable):
@@ -99,7 +106,7 @@ class CouplerCorrelation(Observable):
             A numpy array containing the pairwise spin correlations for each coupler.
         """
         sample_array = dimod.as_samples(sample_set)[0].astype(float)
-        if len(experiment.inst.edge_list) == 0:
+        if not experiment.inst.edge_list:
             return np.empty(0, dtype=float)
 
         row, col = np.asarray(experiment.inst.edge_list).T
@@ -127,7 +134,7 @@ class CouplerFrustration(Observable):
             A numpy array containing the mean coupler frustration for each edge.
         """
         sample_array = dimod.as_samples(sample_set)[0].astype(float)
-        if len(experiment.inst.edge_list) == 0:
+        if not experiment.inst.edge_list:
             return np.empty(0, dtype=float)
 
         row, col = np.asarray(experiment.inst.edge_list).T
@@ -216,7 +223,7 @@ class ReferenceEnergy(Observable):
             sample_set: The sample set is not used in this observable, but is
                 included in the signature for consistency with other observables.
             path: Optional path to load/save the reference energy. If not provided,
-            a default path will be generated based on the experiment and BQM.
+                a default path will be generated based on the experiment and BQM.
 
         Returns:
             The reference energy for the given BQM.
@@ -250,7 +257,18 @@ class ReferenceEnergy(Observable):
         bqm: dimod.BQM,
         path: str | Path | None = None,
     ) -> tuple[float, NDArray, str]:
-        """Load and get the full data tuple, not just the energy."""
+        """Load and get the full data tuple, not just the energy.
+
+        Args:
+            experiment: The experiment for which to load the reference energy.
+            bqm: The binary quadratic model corresponding to the problem instance.
+            path: Optional path to load the reference energy. If not provided,
+                a default path will be generated based on the experiment and BQM.
+
+        Returns:
+            A tuple containing the reference energy, the corresponding sample
+            as a NumPy array, and a string indicating the optimization method used.
+        """
         if path is not None:
             path = Path(path)
         else:
@@ -265,7 +283,15 @@ class ReferenceEnergy(Observable):
         return energy, sample, method_string
 
     def save(self, path: str | Path, energy: float, sample: NDArray, method_string: str) -> None:
-        """Save the reference energy to disk."""
+        """Save the reference energy to disk.
+
+        Args:
+            path: Path to save the reference energy file.
+            energy: The reference energy to save.
+            sample: The corresponding sample to save.
+            method_string: A string indicating the optimization method used to
+                obtain the reference energy.
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         np.savetxt(path, sample, fmt="%d", header=f"{method_string}\n{energy}", comments="")
@@ -274,13 +300,20 @@ class ReferenceEnergy(Observable):
         self,
         experiment: Experiment,
         bqm: dimod.BQM,
-        sample,
+        sample: NDArray,
         path: str | Path | None = None,
     ) -> None:
         """Update the cached reference energy if the provided sample improves it.
 
         Use this when you get an energy that is lower than the reference energy.
         We want to keep the old method string unless it is specified.
+
+        Args:
+            experiment: The experiment for which to update the reference energy.
+            bqm: The binary quadratic model corresponding to the problem instance.
+            sample: The new sample that may improve the reference energy.
+            path: Optional path to load/save the reference energy. If not provided,
+                a default path will be generated based on the experiment and BQM.
         """
         if path is not None:
             path = Path(path)
@@ -288,12 +321,12 @@ class ReferenceEnergy(Observable):
         reference_energy, _, reference_method_string = self.load(experiment, bqm, path)
         new_energy = bqm.energy(sample)
 
-        if new_energy < reference_energy:
-            if path is None:
-                path = get_reference_energy_path(bqm, experiment)
-            self.save(path, new_energy, sample, reference_method_string)
-        else:
+        if new_energy >= reference_energy:
             raise ValueError("New energy is not better than reference energy, not updating.")
+
+        if path is None:
+            path = get_reference_energy_path(bqm, experiment)
+        self.save(path, new_energy, sample, reference_method_string)
 
 
 def get_reference_energy_path(
@@ -308,7 +341,7 @@ def get_reference_energy_path(
     pathstring, for example when ground-state energies depend on the specific chip.
 
     Args:
-        bqm: The BQM for which to get the reference energy path.
+        bqm: The binary quadratic model for which to get the reference energy path.
         experiment: The experiment for which to get the reference energy path.
         root: Optional root directory to use instead of the experiment's data root.
         dummy_experiment_data_dict: A dictionary containing the keys ``run_index``,

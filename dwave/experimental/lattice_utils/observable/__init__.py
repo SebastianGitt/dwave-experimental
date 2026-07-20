@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dwave.experimental.lattice_utils.observable.observable import *
 from dwave.experimental.lattice_utils.observable.kinks import *
+from dwave.experimental.lattice_utils.observable.observable import *
 from dwave.experimental.lattice_utils.observable.triangular import *

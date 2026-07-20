@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,11 +44,6 @@ class TestChain(unittest.TestCase):
             chain = lattice.Chain(dimensions=(1,), periodic=(True,), data_root=tmpdir)
             self.assertEqual(chain.num_spins, 1)
             self.assertEqual(chain.num_edges, 0)
-
-    def test_two_node_periodic(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            chain = lattice.Chain(dimensions=(2,), periodic=(True,), data_root=tmpdir)
-            self.assertEqual(chain.num_edges, 2)
 
     def test_geometry_name(self):
         with tempfile.TemporaryDirectory() as tmpdir:

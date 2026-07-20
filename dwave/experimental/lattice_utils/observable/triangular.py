@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +13,11 @@
 # limitations under the License.
 
 from __future__ import annotations
-import numpy as np
-from numpy.typing import NDArray
+
 import dimod
+import numpy as np
 from dimod import BQM
+from numpy.typing import NDArray
 
 from dwave.experimental.lattice_utils.observable.observable import Observable
 

@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,20 +13,20 @@
 # limitations under the License.
 
 import os
-from pathlib import Path
-from collections.abc import Generator, Hashable
-from abc import ABC, abstractmethod
 import warnings
+from abc import ABC, abstractmethod
+from collections.abc import Generator, Hashable
+from pathlib import Path
 from typing import Any
 
 import dimod
-from minorminer.utils.parallel_embeddings import find_multiple_embeddings
 import networkx as nx
 import numpy as np
+from minorminer.utils.parallel_embeddings import find_multiple_embeddings
 from numpy.typing import NDArray
 
-from dwave.experimental.lattice_utils.lattice.orbits import get_orbits
 from dwave.experimental.lattice_utils.lattice.optimize import optimize
+from dwave.experimental.lattice_utils.lattice.orbits import get_orbits
 
 __all__ = ['Lattice']
 
@@ -212,16 +212,19 @@ class Lattice(ABC):
             self.coupler_orbits = np.arange(self.num_edges)
 
         elif self.orbit_type == "explicit":
-            if qubit_orbits is not None and coupler_orbits is not None:
-                if len(qubit_orbits) != self.num_spins:
-                    raise ValueError(
-                        f"qubit_orbits must have length {self.num_spins}, got {len(qubit_orbits)}."
-                    )
-                if len(coupler_orbits) != self.num_edges:
-                    raise ValueError(
-                        f"coupler_orbits must have length {self.num_edges}, "
-                        f"got {len(coupler_orbits)}."
-                    )
+            if qubit_orbits is None or coupler_orbits is None:
+                raise ValueError(
+                    'orbit_type "explicit" requires both qubit_orbits and coupler_orbits.'
+                )
+            if len(qubit_orbits) != self.num_spins:
+                raise ValueError(
+                    f"qubit_orbits must have length {self.num_spins}, got {len(qubit_orbits)}."
+                )
+            if len(coupler_orbits) != self.num_edges:
+                raise ValueError(
+                    f"coupler_orbits must have length {self.num_edges}, "
+                    f"got {len(coupler_orbits)}."
+                )
             self.qubit_orbits = qubit_orbits
             self.coupler_orbits = coupler_orbits
         else:

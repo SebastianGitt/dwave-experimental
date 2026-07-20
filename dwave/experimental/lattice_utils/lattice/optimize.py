@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,12 @@
 # limitations under the License.
 
 from __future__ import annotations
+
 from typing import Any
 
-from dwave.samplers import SimulatedAnnealingSampler
-import numpy as np
 import dimod
+import numpy as np
+from dwave.samplers import SimulatedAnnealingSampler
 from numpy.typing import NDArray
 
 __all__ = ['optimize', 'ExponentialBackoffSimulatedAnnealingSampler']

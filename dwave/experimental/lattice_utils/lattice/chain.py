@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
-from numpy.typing import NDArray
 import dimod
+from numpy.typing import NDArray
 
-from dwave.experimental.lattice_utils.lattice import Lattice
+from dwave.experimental.lattice_utils.lattice.lattice import Lattice
 
 __all__ = ['Chain']
 
@@ -82,5 +82,5 @@ class Chain(Lattice):
         for i in range(n - 1):
             yield (i, i + 1)
 
-        if self.periodic[0] and n > 1:
+        if self.periodic[0] and n > 2:
             yield (n - 1, 0)

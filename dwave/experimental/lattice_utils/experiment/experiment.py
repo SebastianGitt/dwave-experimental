@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,30 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tempfile
+from __future__ import annotations
+
+import copy
 import lzma
 import os
 import pickle
+import tempfile
 import time
-from pathlib import Path
-from datetime import datetime
-from typing import Any
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 import dimod
 import numpy as np
-from tqdm.auto import tqdm
 
-from dwave.experimental.lattice_utils.lattice import Lattice
+try:
+    from tqdm.auto import tqdm
+except ImportError:
+    tqdm = None
+
+from dwave.experimental.lattice_utils.experiment.samplercall import SamplerCall
+from dwave.experimental.lattice_utils.lattice.lattice import Lattice
 from dwave.experimental.lattice_utils.observable import (
-    QubitMagnetization,
+    BitpackedSpins,
     CouplerCorrelation,
     CouplerFrustration,
-    SampleEnergy,
-    BitpackedSpins,
+    QubitMagnetization,
     ReferenceEnergy,
+    SampleEnergy,
 )
-from dwave.experimental.lattice_utils.experiment.samplercall import SamplerCall
 
 __all__ = ['Experiment', 'ExperimentConfig']
 
@@ -89,28 +96,27 @@ class Experiment:
         self.sampler = sampler
         self.reference_energy_sampler = reference_energy_sampler
         self.reference_energy_sampler_kwargs = reference_energy_sampler_kwargs
-        self.param = dict(vars(config))
+        self.param = vars(config).copy()
         self.experiment_results_root = inst.data_root / "results"
         self.data_path = None
         self.run_index = 0
         self.config = config
         self.max_iterations = max_iterations
         self.already_initialized: bool = False
-        self.observables_to_collect = {
+        self.observables_to_collect = [
             QubitMagnetization(),
             CouplerCorrelation(),
             CouplerFrustration(),
             SampleEnergy(),
             BitpackedSpins(),
             ReferenceEnergy(),
-        }
+        ]
 
     def load_results(
         self,
         num_iterations: int = 100,
         start_iteration: int | None = None,
         result_fields: list[str] | None = None,
-        quiet: bool = True,
         ignore_shim: bool = False,
     ) -> list[dict[str, Any]]:
         """Load results from the highest-numbered iterations of the experiment.
@@ -122,7 +128,6 @@ class Experiment:
                 results are loaded.
             result_fields: Subset of fields to extract from each result file. If
                 ``None``, all fields present in the first result file are used.
-            quiet: If false, prints a message when each result file is loaded.
             ignore_shim: If true, the ``shimdata`` field is removed from the
                 returned results.
 
@@ -144,12 +149,10 @@ class Experiment:
             except lzma.LZMAError as e:
                 raise lzma.LZMAError(f"Failing to load {filename}", e)
 
-            if not quiet:
-                print(f"Loaded {filename} at {datetime.now()}")
             if result_fields is None:
                 result_fields = list(data.keys())
-                if ignore_shim:
-                    result_fields.remove("shimdata")
+            if ignore_shim:
+                result_fields.remove("shimdata")
 
             results.append({k: data[k] for k in result_fields})
 
@@ -172,8 +175,7 @@ class Experiment:
         elif "anneal_time" in param:
             self.param.pop("anneal_schedule", None)
 
-        for param_name, param_val in param.items():
-            self.param[param_name] = param_val
+        self.param.update(param)
 
         self.data_path = self.experiment_results_root / self._get_relative_data_path()
         self.already_initialized = self._prepare_run_index()
@@ -199,6 +201,9 @@ class Experiment:
             A boolean value corresponding to whether or not the experiment is
             finished.
         """
+        if progress and tqdm is None:
+            raise ImportError("Progress reporting requires the optional 'tqdm' dependency.")
+
         try:
             self.inst._load_embeddings(self.sampler)
         except FileNotFoundError as e:
@@ -216,11 +221,14 @@ class Experiment:
         response_dict = {}
         call_dict = {}
 
-        create_bar = self._make_progress_bar(
-            total=len(parameter_list),
-            desc="Creating sampler calls",
-            colour=DW_BLUE,
-            enabled=progress,
+        create_bar = (
+            self._make_progress_bar(
+                total=len(parameter_list),
+                desc="Creating sampler calls",
+                colour=DW_BLUE,
+            )
+            if progress
+            else None
         )
 
         for index, param in enumerate(parameter_list):
@@ -239,18 +247,21 @@ class Experiment:
         if create_bar is not None:
             create_bar.close()
 
-        if len(call_dict) == 0:
+        if not call_dict:
             if progress:
                 tqdm.write(
                     f"***\n***\nFINISHED for all {len(parameter_list)} parameterizations.\n***\n***"
                 )
             return True
 
-        wait_bar = self._make_progress_bar(
-            total=len(call_dict),
-            desc=" Awaiting/parsing data",
-            colour=DW_TEAL,
-            enabled=progress,
+        wait_bar = (
+            self._make_progress_bar(
+                total=len(call_dict),
+                desc=" Awaiting/parsing data",
+                colour=DW_TEAL,
+            )
+            if progress
+            else None
         )
 
         # Get and manage all the results
@@ -264,7 +275,7 @@ class Experiment:
                     results = self.parse_results(call_dict[index], val)
                     self._update_shim(call_dict[index], results)
                     savedata = self._generate_data_to_save(call_dict[index], results)
-                    self._save_results(savedata, quiet=True)
+                    self._save_results(savedata)
                     if wait_bar is not None:
                         wait_bar.update()
                     del response_dict[index]
@@ -277,7 +288,9 @@ class Experiment:
         if wait_bar is not None:
             wait_bar.close()
 
-        self._print_iteration_status(call_dict, len(parameter_list), enabled=progress)
+        if progress:
+            self._print_iteration_status(call_dict, len(parameter_list))
+
         return False
 
     def parse_results(self, call: SamplerCall, response: dimod.SampleSet) -> dict[str, Any]:
@@ -305,14 +318,14 @@ class Experiment:
             )
 
         results = {}
-        for observable in set(self.observables_to_collect):
+        for observable in self.observables_to_collect:
             results[observable.name] = []
             for iemb, sample_array in enumerate(sample_arrays):
                 bqm = call.logical_bqms[iemb]
                 obs_result = observable.evaluate(self, bqm, sample_set[iemb])
                 results[observable.name].append(obs_result)
 
-            if type(results[observable.name][0]) == np.ndarray:
+            if isinstance(results[observable.name][0], np.ndarray):
                 results[observable.name] = np.asarray(results[observable.name])
 
         return results
@@ -323,14 +336,10 @@ class Experiment:
         total: int,
         desc: str,
         colour: str,
-        enabled: bool,
         bar_format: str | None = None,
         initial: int | float = 0,
-    ) -> tqdm | None:
+    ) -> tqdm:
         """Create a tqdm progress bar with consistent formatting."""
-        if not enabled:
-            return None
-
         if bar_format is None:
             bar_width = min(100, max(total, 20))
             bar_format = f"{{desc}}: |{{bar:{bar_width}}}{{r_bar}}{{bar:-{bar_width}b}}"
@@ -347,11 +356,8 @@ class Experiment:
         self,
         call_dict: dict[int, SamplerCall],
         num_params: int,
-        enabled: bool,
     ) -> None:
         """Print a summary of the iteration status, including progress and iteration ranges."""
-        if not enabled:
-            return
         iteration_range = (
             f"Iteration range "
             f"{min(call.shimdata['total_iterations'] for call in call_dict.values())}-"
@@ -384,7 +390,6 @@ class Experiment:
             desc="        Total progress",
             bar_format=bar_format,
             colour=DW_ORANGE,
-            enabled=enabled,
             initial=progress_value,
         )
         total_bar.close()
@@ -393,7 +398,6 @@ class Experiment:
         self,
         data_dict: dict[str, Any],
         run_index: int | None = None,
-        quiet: bool = True,
         filename: str | None = None,
     ) -> None:
         """Save results to disk using LZMA-compressed pickle."""
@@ -403,7 +407,7 @@ class Experiment:
             filename = f"iter{run_index:05d}.pkl.lzma"
         else:
             if run_index is not None:
-                raise ValueError
+                raise ValueError("Cannot specify both filename and run_index.")
 
         # Write to a temp directory first to reduce disk write errors from killed jobs.
         with tempfile.TemporaryDirectory(dir=self.data_path) as tmp:
@@ -412,14 +416,9 @@ class Experiment:
                 pickle.dump(data_dict, f)
             os.rename(temp_filename, self.data_path / filename)
 
-        if not quiet:
-            print(f"Saved {filename} at {datetime.now()}")
-
     def _get_sorted_results_file_list(self) -> list[str]:
         """Return result filenames sorted lexicographically."""
-        fnlist = list(self.data_path.glob("iter*.pkl.lzma"))
-        fnlist.sort()
-        return [str(fn) for fn in fnlist]
+        return [str(fn) for fn in sorted(self.data_path.glob("iter*.pkl.lzma"))]
 
     def _get_next_run_index(self) -> tuple[int, bool]:
         """Get the next run index based on the existing files in the data path."""
@@ -479,7 +478,9 @@ class Experiment:
                 f'energyscale{signed_energy_scale:0.3}/asched{self.param["anneal_schedule"]}'
             )
         else:
-            raise ValueError
+            raise ValueError(
+                "Parameter list must contain either 'anneal_time' or 'anneal_schedule'."
+            )
 
         # Strip spaces and replace other unswanted symbols with underscores.
         pathstring = pathstring.replace(" ", "_")
@@ -537,16 +538,14 @@ class Experiment:
         Some parameters can cause bugs if they are not appropriately formatted,
         rounded, etc. in accordance with filenames.
         """
-        ret = parameter_list.copy()
+        ret_unique = []
+        ret = copy.deepcopy(parameter_list)
         for entry in ret:
             if "anneal_time" in entry:
                 entry["anneal_time"] = np.round(entry["anneal_time"], 6)
             if "anneal_schedule" in entry:
                 entry["anneal_schedule"] = [tuple(np.round(p, 6)) for p in entry["anneal_schedule"]]
 
-        # We want the elements to be unique, of course.
-        ret_unique = []
-        for entry in ret:
             if entry not in ret_unique:
                 ret_unique.append(entry)
 
@@ -560,7 +559,7 @@ class Experiment:
         """Construct a single dictionary containing results and shim data for saving."""
         savedata = {}
         for key in results:
-            if type(results[key]) == np.ndarray:
+            if isinstance(results[key], np.ndarray):
                 if results[key].dtype == "complex128":
                     savedata[key] = results[key].astype(np.complex64)
                 elif results[key].dtype == "float64":
@@ -572,9 +571,9 @@ class Experiment:
 
         savedata["shimdata"] = {}
         for key in sampler_call.shimdata:
-            if type(sampler_call.shimdata[key]) == np.ndarray:
+            if isinstance(sampler_call.shimdata[key], np.ndarray):
                 savedata["shimdata"][key] = sampler_call.shimdata[key].astype(np.float32)
-            elif type(sampler_call.shimdata[key]) == int:
+            elif isinstance(sampler_call.shimdata[key], int):
                 savedata["shimdata"][key] = sampler_call.shimdata[key]
             else:
                 savedata["shimdata"][key] = sampler_call.shimdata[key].copy()
@@ -601,7 +600,10 @@ class Experiment:
         if self.param.get("fast_anneal", False):
             ret["fast_anneal"] = True
 
-        ret["annealing_time"] = self.param["anneal_time"]
+        if "anneal_schedule" in self.param:
+            ret["anneal_schedule"] = self.param["anneal_schedule"]
+        elif "anneal_time" in self.param:
+            ret["annealing_time"] = self.param["anneal_time"]
 
         return ret
 
@@ -629,7 +631,7 @@ class Experiment:
         """Return the filename of the most recently completed iteration."""
         return self.data_path / f"iter{self.run_index - 1:05d}.pkl.lzma"
 
-    def _load_shim(self):
+    def _load_shim(self) -> dict[str, Any]:
         """Load shim data from the most recently completed iteration."""
         filename = self._get_latest_iteration_filename()
 
@@ -647,7 +649,7 @@ class Experiment:
         except Exception as e:
             raise OSError("Failed to open file") from e
 
-    def _update_shim(self, sampler_call: SamplerCall, results: dict[str, Any]):
+    def _update_shim(self, sampler_call: SamplerCall, results: dict[str, Any]) -> None:
         """Update shim parameters according to shim data and parameters."""
         if "flux_biases" in sampler_call.shimdata and self.param.get("flux_bias_shim_step", 0) != 0:
             self._update_flux_bias_shim(sampler_call, results)
@@ -659,7 +661,7 @@ class Experiment:
 
         sampler_call.shimdata["total_iterations"] += 1
 
-    def _update_flux_bias_shim(self, sampler_call: SamplerCall, results: dict[str, Any]):
+    def _update_flux_bias_shim(self, sampler_call: SamplerCall, results: dict[str, Any]) -> None:
         """Update flux-bias shim values based on qubit magnetization."""
         target_magnetization = self.param["target_magnetization"]
         qubit_magnetization = results["QubitMagnetization"]
@@ -822,7 +824,7 @@ class Experiment:
 
             for iedge, edge in enumerate(self.inst.edge_list):
                 bias = (
-                    logical_bqm.quadratic[*edge]
+                    logical_bqm.quadratic[tuple(edge)]
                     * relative_coupler_strength[iemb, iedge]
                     * signed_energy_scale
                 )

@@ -1,4 +1,4 @@
-# Copyright 2025 D-Wave
+# Copyright 2026 D-Wave
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,5 +13,5 @@
 # limitations under the License.
 
 from dwave.experimental.lattice_utils.experiment.experiment import *
-from dwave.experimental.lattice_utils.experiment.samplercall import *
 from dwave.experimental.lattice_utils.experiment.fast_anneal_experiment import *
+from dwave.experimental.lattice_utils.experiment.samplercall import *
