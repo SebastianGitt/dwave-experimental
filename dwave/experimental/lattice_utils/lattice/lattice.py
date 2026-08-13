@@ -34,7 +34,7 @@ __all__ = ['Lattice']
 class Lattice(ABC):
     """An abstract base class for representing lattice geometries used in lattice-utils experiments.
 
-    Subclasses are resonsible for defining the lattice geometry itself. In particular,
+    Subclasses are responsible for defining the lattice geometry itself. In particular,
     a subclass must:
 
     - Implement the ``generate_edges`` method, which yields the edges of the lattice as pairs
@@ -76,12 +76,10 @@ class Lattice(ABC):
                 f"periodic and dimensions must have the same length: "
                 f"got {len(self.periodic)} and {len(self.dimensions)}."
             )
-
-        self.edge_list: list[tuple[Hashable, Hashable]] = list(self.generate_edges())
-
         if not hasattr(self, "num_spins"):
             raise AttributeError(f"{type(self).__name__} subclass must initialize self.num_spins")
 
+        self.edge_list: list[tuple[Hashable, Hashable]] = list(self.generate_edges())
         self.num_edges: int = len(self.edge_list)
         self.orbit_type: str = orbit_type
         self.initialize_orbits(qubit_orbits, coupler_orbits)
@@ -267,7 +265,7 @@ class Lattice(ABC):
         sampler_name: str | None = None,
         extra_subdir: str | Path | None = None,
     ) -> Path:
-        """Construct a standarized file path for embedding or orbit data."""
+        """Construct a standardized file path for embedding or orbit data."""
         if kind not in {"embedding", "orbits"}:
             raise ValueError("kind must be provided as either `embedding` or `orbits`")
 
@@ -297,7 +295,7 @@ class Lattice(ABC):
         os.makedirs(cache_filename.parent, exist_ok=True)
         np.savetxt(cache_filename, embeddings, fmt="%d")
 
-    def _load_embeddings(self, sampler: str) -> None:
+    def _load_embeddings(self, sampler: dimod.Sampler) -> None:
         """Load embedding data."""
         filename = self._make_filename("embedding", sampler=sampler)
         self.embedding_list = np.atleast_2d(np.loadtxt(filename, dtype=int))

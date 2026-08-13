@@ -14,12 +14,15 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import dimod
 import numpy as np
 from dwave.samplers import SimulatedAnnealingSampler
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from dwave.experimental.lattice_utils.experiment.experiment import Lattice
 
 __all__ = ['optimize', 'ExponentialBackoffSimulatedAnnealingSampler']
 

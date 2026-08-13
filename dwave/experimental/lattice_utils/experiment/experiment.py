@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import dimod
 import numpy as np
@@ -32,6 +32,9 @@ try:
     from tqdm.auto import tqdm
 except ImportError:
     tqdm = None
+
+if TYPE_CHECKING:
+    from tqdm.std import tqdm as tqdm_bar
 
 from dwave.experimental.lattice_utils.experiment.samplercall import SamplerCall
 from dwave.experimental.lattice_utils.lattice.lattice import Lattice
@@ -128,7 +131,7 @@ class Experiment:
                 results are loaded.
             result_fields: Subset of fields to extract from each result file. If
                 ``None``, all fields present in the first result file are used.
-            ignore_shim: If true, the ``shimdata`` field is removed from the
+            ignore_shim: If true, the ``shim_data`` field is removed from the
                 returned results.
 
         Returns:
@@ -152,7 +155,7 @@ class Experiment:
             if result_fields is None:
                 result_fields = list(data.keys())
             if ignore_shim:
-                result_fields.remove("shimdata")
+                result_fields.remove("shim_data")
 
             results.append({k: data[k] for k in result_fields})
 
@@ -338,8 +341,15 @@ class Experiment:
         colour: str,
         bar_format: str | None = None,
         initial: int | float = 0,
-    ) -> tqdm:
-        """Create a tqdm progress bar with consistent formatting."""
+    ) -> tqdm_bar:
+        """Create a tqdm progress bar with consistent formatting.
+
+        The optional ``tqdm`` dependency is required to call this method. If
+        ``tqdm`` is not installed, an ImportError will be raised.
+        """
+        if tqdm is None:
+            raise ImportError("Progress reporting requires the optional 'tqdm' dependency.")
+
         if bar_format is None:
             bar_width = min(100, max(total, 20))
             bar_format = f"{{desc}}: |{{bar:{bar_width}}}{{r_bar}}{{bar:-{bar_width}b}}"
@@ -357,11 +367,18 @@ class Experiment:
         call_dict: dict[int, SamplerCall],
         num_params: int,
     ) -> None:
-        """Print a summary of the iteration status, including progress and iteration ranges."""
+        """Print a summary of the iteration status, including progress and iteration ranges.
+
+        The optional ``tqdm`` dependency is required to call this method. If
+        ``tqdm`` is not installed, an ImportError will be raised.
+        """
+        if tqdm is None:
+            raise ImportError("Progress reporting requires the optional 'tqdm' dependency.")
+
         iteration_range = (
             f"Iteration range "
-            f"{min(call.shimdata['total_iterations'] for call in call_dict.values())}-"
-            f"{max(call.shimdata['total_iterations'] for call in call_dict.values())} "
+            f"{min(call.shim_data['total_iterations'] for call in call_dict.values())}-"
+            f"{max(call.shim_data['total_iterations'] for call in call_dict.values())} "
         )
         if self.max_iterations is None:
             tqdm.write("        Total progress: " + iteration_range)
@@ -369,15 +386,15 @@ class Experiment:
 
         total = num_params * self.max_iterations
         progress_value = (
-            sum(call.shimdata["total_iterations"] for call in call_dict.values())
+            sum(call.shim_data["total_iterations"] for call in call_dict.values())
             + (num_params - len(call_dict)) * self.max_iterations
         )
 
         progress_string = (
             f"{progress_value / total * 100:.1f}%  "
             f"Iteration range "
-            f"{min(call.shimdata['total_iterations'] for call in call_dict.values())}-"
-            f"{max(call.shimdata['total_iterations'] for call in call_dict.values())} "
+            f"{min(call.shim_data['total_iterations'] for call in call_dict.values())}-"
+            f"{max(call.shim_data['total_iterations'] for call in call_dict.values())} "
             f"of {self.max_iterations} "
             f"({num_params - len(call_dict)} of {num_params} parameters finished)"
         )
@@ -515,17 +532,17 @@ class Experiment:
         """
         sampler_call = SamplerCall(run_index=self.run_index)
         sampler_call.logical_bqms = self._make_logical_bqms()
-        sampler_call.shimdata = self._get_shimdata()
+        sampler_call.shim_data = self._get_shim_data()
 
         # Here we can find out that we're finished.
         if (
             self.max_iterations is not None
-            and sampler_call.shimdata["total_iterations"] >= self.max_iterations
+            and sampler_call.shim_data["total_iterations"] >= self.max_iterations
         ):
             return None
 
         sampler_call.bqm = self._make_bqm(sampler_call)
-        sampler_call.sampler_params = self._make_sampler_params(shimdata=sampler_call.shimdata)
+        sampler_call.sampler_params = self._make_sampler_params(shim_data=sampler_call.shim_data)
 
         return sampler_call
 
@@ -569,14 +586,14 @@ class Experiment:
             else:
                 savedata[key] = results[key].copy()
 
-        savedata["shimdata"] = {}
-        for key in sampler_call.shimdata:
-            if isinstance(sampler_call.shimdata[key], np.ndarray):
-                savedata["shimdata"][key] = sampler_call.shimdata[key].astype(np.float32)
-            elif isinstance(sampler_call.shimdata[key], int):
-                savedata["shimdata"][key] = sampler_call.shimdata[key]
+        savedata["shim_data"] = {}
+        for key in sampler_call.shim_data:
+            if isinstance(sampler_call.shim_data[key], np.ndarray):
+                savedata["shim_data"][key] = sampler_call.shim_data[key].astype(np.float32)
+            elif isinstance(sampler_call.shim_data[key], int):
+                savedata["shim_data"][key] = sampler_call.shim_data[key]
             else:
-                savedata["shimdata"][key] = sampler_call.shimdata[key].copy()
+                savedata["shim_data"][key] = sampler_call.shim_data[key].copy()
 
         return savedata
 
@@ -591,11 +608,11 @@ class Experiment:
             "label": os.path.join(self._get_relative_data_path(), f"iter{self.run_index:05d}"),
         }
 
-        if "shimdata" in kwargs:
-            if "flux_biases" in kwargs["shimdata"]:
-                ret["flux_biases"] = list(kwargs["shimdata"]["flux_biases"])
-            if "anneal_offsets" in kwargs["shimdata"]:
-                ret["anneal_offsets"] = list(kwargs["shimdata"]["anneal_offsets"])
+        if "shim_data" in kwargs:
+            if "flux_biases" in kwargs["shim_data"]:
+                ret["flux_biases"] = list(kwargs["shim_data"]["flux_biases"])
+            if "anneal_offsets" in kwargs["shim_data"]:
+                ret["anneal_offsets"] = list(kwargs["shim_data"]["anneal_offsets"])
 
         if self.param.get("fast_anneal", False):
             ret["fast_anneal"] = True
@@ -607,7 +624,7 @@ class Experiment:
 
         return ret
 
-    def _get_shimdata(self) -> dict[str, Any]:
+    def _get_shim_data(self) -> dict[str, Any]:
         """Load shim data if possible, otherwise make an initial shim."""
         if self.already_initialized:
             return self._load_shim()
@@ -615,17 +632,17 @@ class Experiment:
 
     def _make_initial_shim(self) -> dict[str, Any]:
         """Create the initial shim and dictate what shim will be saved and modified."""
-        shimdata = {"total_iterations": 0}
+        shim_data = {"total_iterations": 0}
         if hasattr(self.inst, "embedding_list"):
             num_embeddings = len(self.inst.embedding_list)
-            shimdata["flux_biases"] = np.zeros(self.sampler.properties["num_qubits"])
-            shimdata["anneal_offsets"] = np.zeros(self.sampler.properties["num_qubits"])
-            shimdata["relative_coupler_strength"] = np.ones((num_embeddings, self.inst.num_edges))
+            shim_data["flux_biases"] = np.zeros(self.sampler.properties["num_qubits"])
+            shim_data["anneal_offsets"] = np.zeros(self.sampler.properties["num_qubits"])
+            shim_data["relative_coupler_strength"] = np.ones((num_embeddings, self.inst.num_edges))
 
         if self.param.get("flux_biases", None) is not None:
-            shimdata["flux_biases"] = self.param.get("flux_biases")
+            shim_data["flux_biases"] = self.param.get("flux_biases")
 
-        return shimdata
+        return shim_data
 
     def _get_latest_iteration_filename(self) -> Path:
         """Return the filename of the most recently completed iteration."""
@@ -642,8 +659,8 @@ class Experiment:
         try:
             with lzma.open(filename, "rb") as f:
                 data = pickle.load(f)
-                shimdata = data["shimdata"]
-            return shimdata
+                shim_data = data["shim_data"]
+            return shim_data
         except FileNotFoundError as e:
             raise FileNotFoundError(f"{filename} does not exist") from e
         except Exception as e:
@@ -651,21 +668,21 @@ class Experiment:
 
     def _update_shim(self, sampler_call: SamplerCall, results: dict[str, Any]) -> None:
         """Update shim parameters according to shim data and parameters."""
-        if "flux_biases" in sampler_call.shimdata and self.param.get("flux_bias_shim_step", 0) != 0:
+        if "flux_biases" in sampler_call.shim_data and self.param.get("flux_bias_shim_step", 0) != 0:
             self._update_flux_bias_shim(sampler_call, results)
         if (
-            "relative_coupler_strength" in sampler_call.shimdata
+            "relative_coupler_strength" in sampler_call.shim_data
             and self.param.get("coupler_shim_step", 0) != 0
         ):
             self._update_coupler_shim(sampler_call, results)
 
-        sampler_call.shimdata["total_iterations"] += 1
+        sampler_call.shim_data["total_iterations"] += 1
 
     def _update_flux_bias_shim(self, sampler_call: SamplerCall, results: dict[str, Any]) -> None:
         """Update flux-bias shim values based on qubit magnetization."""
         target_magnetization = self.param["target_magnetization"]
         qubit_magnetization = results["QubitMagnetization"]
-        flux_biases = sampler_call.shimdata["flux_biases"]
+        flux_biases = sampler_call.shim_data["flux_biases"]
         shim_step = self.param["flux_bias_shim_step"]
 
         steps = shim_step * (qubit_magnetization.ravel() - target_magnetization)
@@ -693,7 +710,7 @@ class Experiment:
         """Update relative coupler strength based on measured frustration."""
         orbits = self.inst.coupler_orbits
         signed_energy_scale = self.param["signed_energy_scale"]
-        relative_coupler_strength = sampler_call.shimdata["relative_coupler_strength"]
+        relative_coupler_strength = sampler_call.shim_data["relative_coupler_strength"]
 
         # Allow for zero step size, which will just truncate the shim.
         if step_size is None:
@@ -813,7 +830,7 @@ class Experiment:
 
             return bqm
 
-        relative_coupler_strength = sampler_call.shimdata["relative_coupler_strength"]
+        relative_coupler_strength = sampler_call.shim_data["relative_coupler_strength"]
         for iemb, emb in enumerate(self.inst.embedding_list):
             logical_bqm = sampler_call.logical_bqms[iemb].copy()
 

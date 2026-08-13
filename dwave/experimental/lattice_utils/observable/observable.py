@@ -16,13 +16,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, TYPE_CHECKING
 
 import dimod
 import numpy as np
 from numpy.typing import NDArray
 
 from dwave.experimental.lattice_utils.lattice.lattice import Lattice
+
+if TYPE_CHECKING:
+    from dwave.experimental.lattice_utils.experiment.experiment import Experiment
 
 __all__ = [
     'Observable',
@@ -353,6 +356,8 @@ def get_reference_energy_path(
         The path to the reference energy file.
     """
     if experiment is None:
+        if dummy_experiment_data_dict is None:
+            raise ValueError("Provide either 'experiment' or 'dummy_experiment_data_dict'.")
         experiment_data_dict = dummy_experiment_data_dict
     else:
         experiment_data_dict = {

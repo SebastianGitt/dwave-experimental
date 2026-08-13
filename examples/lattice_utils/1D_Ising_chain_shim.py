@@ -14,7 +14,6 @@
 
 """Shimming example for 1D Ising chain."""
 
-import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -38,9 +37,6 @@ ANNEAL_TIMES = np.round(np.geomspace(0.01, 100, 3), 6)
 errorbar_style = {"marker": "", "linestyle": "", "capsize": 2}
 point_style = {"linestyle": "", "markersize": 5}
 cm = plt.get_cmap("tab10")
-
-# Create a folder to save figures in if it doesn't already exist.
-Path("figures").mkdir(exist_ok=True)
 
 data_root = Path(__file__).resolve().parents[1]
 
@@ -109,9 +105,9 @@ for anneal_time in ANNEAL_TIMES:
     mag[anneal_time] = np.array([it["QubitMagnetization"] for it in res])
     frust[anneal_time] = np.array([it["CouplerFrustration"] for it in res])
     cshim[anneal_time] = np.array(
-        [it["shimdata"]["relative_coupler_strength"].ravel() for it in res]
+        [it["shim_data"]["relative_coupler_strength"].ravel() for it in res]
     )
-    fbshim[anneal_time] = np.array([it["shimdata"]["flux_biases"] for it in res])
+    fbshim[anneal_time] = np.array([it["shim_data"]["flux_biases"] for it in res])
 
 title = (
     f"1D chain shim, "
@@ -180,5 +176,9 @@ fig.tight_layout()
 filename = title
 for bad_symbol in "/: ;,":
     filename = filename.replace(bad_symbol, "_")
-fig.savefig(Path(os.getcwd()) / "figures" / f"{filename}.png")
+
+# Create a folder to save figures in if it doesn't already exist.
+(data_root / "figures").mkdir(exist_ok=True)
+
+fig.savefig(data_root / "figures" / f"{filename}.png")
 plt.show()

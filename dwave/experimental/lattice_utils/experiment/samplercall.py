@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import dimod
 
@@ -23,16 +23,8 @@ __all__ = ['SamplerCall']
 class SamplerCall:
     """Data class for managing asynchronous sampler calls."""
 
-    def __init__(
-        self,
-        run_index: int,
-        shimdata: dict | None = None,
-        embedded_bqm: dimod.BQM | None = None,
-        logical_bqms: list | None = None,
-        sampler_params: dict | None = None,
-    ):
-        self.run_index: int = run_index
-        self.bqm: dimod.BQM | None = embedded_bqm
-        self.shimdata: dict = {} if shimdata is None else shimdata
-        self.logical_bqms: list = [] if logical_bqms is None else logical_bqms
-        self.sampler_params: dict = {} if sampler_params is None else sampler_params
+    run_index: int
+    bqm: dimod.BQM | None = None
+    shim_data: dict = field(default_factory=dict)
+    logical_bqms: list = field(default_factory=list)
+    sampler_params: dict = field(default_factory=dict)

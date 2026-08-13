@@ -262,7 +262,7 @@ class DimerizedTriangular(EmbeddedLattice):
                 a chain edge (u == v).
         Returns:
             A tuple of tuples, where each inner tuple represents a pair of indices
-            in the chainscorresponding to u and v that should be connected. For
+            in the chains corresponding to u and v that should be connected. For
             a chain edge (u == v or v is None), this will return pairs of indices
             within the same chain. For a logical edge (u != v), this will return
             pairs of indices between the two chains.

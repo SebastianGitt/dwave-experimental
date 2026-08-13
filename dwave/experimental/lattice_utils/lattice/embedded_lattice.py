@@ -96,6 +96,7 @@ class EmbeddedLattice(Lattice):
             u: The first node in the logical edge.
             v: The second node in the logical edge. If None, this is treated as
                 a chain edge (u == v).
+
         Returns:
             A tuple of tuples, where each inner tuple represents a pair of indices
             in the chains corresponding to u and v that should be connected. For

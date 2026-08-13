@@ -31,7 +31,7 @@ class TestSamplerCall(unittest.TestCase):
         sc = experiment.SamplerCall(run_index=0)
         self.assertEqual(sc.run_index, 0)
         self.assertIsNone(sc.bqm)
-        self.assertEqual(sc.shimdata, {})
+        self.assertEqual(sc.shim_data, {})
         self.assertEqual(sc.logical_bqms, [])
         self.assertEqual(sc.sampler_params, {})
 
@@ -39,14 +39,14 @@ class TestSamplerCall(unittest.TestCase):
         bqm = dimod.BQM(vartype="SPIN")
         sc = experiment.SamplerCall(
             run_index=5,
-            embedded_bqm=bqm,
-            shimdata={"total_iterations": 1},
+            bqm=bqm,
+            shim_data={"total_iterations": 1},
             logical_bqms=[bqm],
             sampler_params={"num_reads": 100},
         )
         self.assertEqual(sc.run_index, 5)
         self.assertIs(sc.bqm, bqm)
-        self.assertEqual(sc.shimdata["total_iterations"], 1)
+        self.assertEqual(sc.shim_data["total_iterations"], 1)
 
 
 class TestExperimentInit(unittest.TestCase):
@@ -108,9 +108,9 @@ class TestShimdata(unittest.TestCase):
             sampler = _make_mock_sampler()
             exp = experiment.Experiment(inst=chain, sampler=sampler)
             exp.already_initialized = False
-            shimdata = exp._make_initial_shim()
-            self.assertEqual(shimdata["total_iterations"], 0)
-            self.assertNotIn("flux_biases", shimdata)
+            shim_data = exp._make_initial_shim()
+            self.assertEqual(shim_data["total_iterations"], 0)
+            self.assertNotIn("flux_biases", shim_data)
 
     def test_initial_shim_with_embeddings(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -118,9 +118,9 @@ class TestShimdata(unittest.TestCase):
             chain.embedding_list = np.array([[0, 1, 2, 3]])
             sampler = _make_mock_sampler(num_qubits=128)
             exp = experiment.Experiment(inst=chain, sampler=sampler)
-            shimdata = exp._make_initial_shim()
-            self.assertIn("flux_biases", shimdata)
-            self.assertEqual(len(shimdata["flux_biases"]), 128)
+            shim_data = exp._make_initial_shim()
+            self.assertIn("flux_biases", shim_data)
+            self.assertEqual(len(shim_data["flux_biases"]), 128)
 
     def test_initial_shim_with_preset_flux_biases(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -130,8 +130,8 @@ class TestShimdata(unittest.TestCase):
             fb = np.ones(128) * 0.01
             exp = experiment.Experiment(inst=chain, sampler=sampler)
             exp.param["flux_biases"] = fb
-            shimdata = exp._make_initial_shim()
-            np.testing.assert_array_almost_equal(shimdata["flux_biases"], fb)
+            shim_data = exp._make_initial_shim()
+            np.testing.assert_array_almost_equal(shim_data["flux_biases"], fb)
 
     def test_load_shim_from_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -141,8 +141,8 @@ class TestShimdata(unittest.TestCase):
             exp.run_index = 1
             exp.data_path = Path(tmpdir)
 
-            shimdata = {"total_iterations": 5, "flux_biases": np.zeros(10)}
-            data = {"shimdata": shimdata}
+            shim_data = {"total_iterations": 5, "flux_biases": np.zeros(10)}
+            data = {"shim_data": shim_data}
             fn = Path(tmpdir) / "iter00000.pkl.lzma"
             with lzma.open(fn, "wb") as f:
                 pickle.dump(data, f)
@@ -188,14 +188,14 @@ class TestShimdata(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 exp._load_shim()
 
-    def test_get_shimdata_not_initialized(self):
+    def test_get_shim_data_not_initialized(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
             sampler = _make_mock_sampler()
             exp = experiment.Experiment(inst=chain, sampler=sampler)
             exp.already_initialized = False
-            shimdata = exp._get_shimdata()
-            self.assertEqual(shimdata["total_iterations"], 0)
+            shim_data = exp._get_shim_data()
+            self.assertEqual(shim_data["total_iterations"], 0)
 
 
 class TestCouplerShim(unittest.TestCase):
@@ -222,7 +222,7 @@ class TestCouplerShim(unittest.TestCase):
 
             sc = experiment.SamplerCall(run_index=0)
             sc.logical_bqms = [chain.make_bqm()]
-            sc.shimdata = {
+            sc.shim_data = {
                 "total_iterations": 0,
                 "relative_coupler_strength": np.ones((1, chain.num_edges)),
             }
@@ -234,7 +234,7 @@ class TestCouplerShim(unittest.TestCase):
             exp._update_coupler_shim(sc, results)
 
             np.testing.assert_array_almost_equal(
-                sc.shimdata["relative_coupler_strength"],
+                sc.shim_data["relative_coupler_strength"],
                 np.array([[0.998, 1.0, 1.002]]),
             )
 
@@ -258,7 +258,7 @@ class TestCouplerShim(unittest.TestCase):
             sc = experiment.SamplerCall(run_index=0)
             sc.logical_bqms = [chain.make_bqm()]
             rcs_before = np.ones((1, chain.num_edges))
-            sc.shimdata = {
+            sc.shim_data = {
                 "total_iterations": 0,
                 "relative_coupler_strength": rcs_before.copy(),
             }
@@ -266,7 +266,7 @@ class TestCouplerShim(unittest.TestCase):
 
             exp._update_coupler_shim(sc, results)
 
-            np.testing.assert_array_equal(sc.shimdata["relative_coupler_strength"], rcs_before)
+            np.testing.assert_array_equal(sc.shim_data["relative_coupler_strength"], rcs_before)
 
 
 class TestSaveLoadResults(unittest.TestCase):
@@ -314,10 +314,10 @@ class TestSaveLoadResults(unittest.TestCase):
             fn = exp.data_path / "iter00000.pkl.lzma"
             fn.parent.mkdir(parents=True, exist_ok=True)
             with lzma.open(fn, "wb") as f:
-                pickle.dump({"value": 0, "shimdata": {}}, f)
+                pickle.dump({"value": 0, "shim_data": {}}, f)
 
             results = exp.load_results(num_iterations=1, ignore_shim=True)
-            self.assertNotIn("shimdata", results[0])
+            self.assertNotIn("shim_data", results[0])
 
     def test_load_results_starting_iteration(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -329,7 +329,7 @@ class TestSaveLoadResults(unittest.TestCase):
                 fn = exp.data_path / f"iter{i:05d}.pkl.lzma"
                 fn.parent.mkdir(parents=True, exist_ok=True)
                 with lzma.open(fn, "wb") as f:
-                    pickle.dump({"value": i, "shimdata": {}}, f)
+                    pickle.dump({"value": i, "shim_data": {}}, f)
 
             results = exp.load_results(num_iterations=3, start_iteration=2)
             self.assertEqual(len(results), 3)
@@ -353,7 +353,7 @@ class TestSaveLoadResults(unittest.TestCase):
             sampler = _make_mock_sampler()
             exp = experiment.Experiment(inst=chain, sampler=sampler)
             sc = experiment.SamplerCall(run_index=0)
-            sc.shimdata = {"total_iterations": 1, "flux_biases": np.zeros(4)}
+            sc.shim_data = {"total_iterations": 1, "flux_biases": np.zeros(4)}
 
             results = {
                 "QubitMagnetization": np.array([0.1, 0.2, 0.3, 0.4]),
@@ -363,7 +363,7 @@ class TestSaveLoadResults(unittest.TestCase):
             savedata = exp._generate_data_to_save(sc, results)
             self.assertEqual(savedata["QubitMagnetization"].dtype, np.float32)
             self.assertEqual(savedata["Complex"].dtype, np.complex64)
-            self.assertEqual(savedata["shimdata"]["total_iterations"], 1)
+            self.assertEqual(savedata["shim_data"]["total_iterations"], 1)
 
 
 class TestMakeBqm(unittest.TestCase):
@@ -378,7 +378,7 @@ class TestMakeBqm(unittest.TestCase):
             )
             sc = experiment.SamplerCall(run_index=0)
             sc.logical_bqms = [chain.make_bqm()]
-            sc.shimdata = {"total_iterations": 0}
+            sc.shim_data = {"total_iterations": 0}
             bqm = exp._make_bqm(sc)
             for u, v in chain.edge_list:
                 self.assertAlmostEqual(bqm.quadratic[(u, v)], 0.5)
@@ -396,7 +396,7 @@ class TestMakeBqm(unittest.TestCase):
             )
             sc = experiment.SamplerCall(run_index=0)
             sc.logical_bqms = [chain.make_bqm()]
-            sc.shimdata = {
+            sc.shim_data = {
                 "total_iterations": 0,
                 "relative_coupler_strength": np.full((1, chain.num_edges), 2.0),
             }
@@ -431,8 +431,8 @@ class TestRunIteration(unittest.TestCase):
 
             self.assertIn("QubitMagnetization", data)
             self.assertIn("CouplerCorrelation", data)
-            self.assertIn("shimdata", data)
-            self.assertEqual(data["shimdata"]["total_iterations"], 1)
+            self.assertIn("shim_data", data)
+            self.assertEqual(data["shim_data"]["total_iterations"], 1)
 
     def test_run_iteration_returns_true_when_finished(self):
         """run_iteration() returns True when max_iterations already reached."""

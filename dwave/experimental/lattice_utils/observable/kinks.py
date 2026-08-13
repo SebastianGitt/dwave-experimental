@@ -14,12 +14,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import dimod
 import numpy as np
 from dimod import BQM, SampleSet
 from numpy.typing import NDArray
 
 from dwave.experimental.lattice_utils.observable.observable import Observable
+
+if TYPE_CHECKING:
+    from dwave.experimental.lattice_utils.experiment.experiment import Experiment
 
 __all__ = ['KinkKinkCorrelator']
 
