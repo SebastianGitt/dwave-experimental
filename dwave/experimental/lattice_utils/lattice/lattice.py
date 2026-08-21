@@ -22,9 +22,11 @@ from typing import Any
 import dimod
 import networkx as nx
 import numpy as np
+from dwave.system.testing import MockDWaveSampler
 from minorminer.utils.parallel_embeddings import find_multiple_embeddings
 from numpy.typing import NDArray
 
+#from dwave.experimental.lattice_utils.lattice.embedded_lattice import EmbeddedLattice
 from dwave.experimental.lattice_utils.lattice.optimize import optimize
 from dwave.experimental.lattice_utils.lattice.orbits import get_orbits
 
@@ -186,7 +188,7 @@ class Lattice(ABC):
         if self.orbit_type == "global":
             self.qubit_orbits = np.zeros(self.num_spins, dtype=int)
 
-            if hasattr(self, "logical_lattice"):
+            if hasattr(self, "chain_nodes"):
                 which_chain = {v: key for key, val in self.chain_nodes.items() for v in val}
                 self.coupler_orbits = np.zeros(self.num_edges, dtype=int)
 
@@ -285,7 +287,7 @@ class Lattice(ABC):
         if sampler is None:
             return self._get_path(kind)
 
-        if type(sampler).__name__ == "MockDWaveSampler":
+        if isinstance(sampler, MockDWaveSampler):
             return self._get_path(kind, sampler_name="MockDWaveSampler")
         return self._get_path(kind, sampler_name=sampler.solver.name)
 

@@ -41,7 +41,7 @@ cm = plt.get_cmap("tab10")
 data_root = Path(__file__).resolve().parents[1]
 
 # Make a lattice instance for a periodic 256-spin chain, so we can embed it.
-inst = lattice.Chain(
+chain = lattice.Chain(
     dimensions=(NUM_SPINS,),
     data_root=data_root,
     periodic=(True,),
@@ -52,7 +52,7 @@ inst = lattice.Chain(
 # function is heuristic and is run here with a default timeout (10s) and no
 # tuning of any parameters. Larger and more complex lattices can take longer
 # to embed.
-inst.embed_lattice(sampler)
+chain.embed_lattice(sampler)
 
 # Time to make an experiment.  The aim in this example is to demonstrate a coupler
 # and flux-bias shim on a chain, at fixed energy scale and varying anneal time.
@@ -80,7 +80,7 @@ for anneal_time in ANNEAL_TIMES:
         coupler_shim_step=coupler_shim_step[anneal_time],
         flux_bias_shim_step=flux_bias_shim_step[anneal_time],
     )
-    exp = experiment.Experiment(inst=inst, sampler=sampler, max_iterations=100, config=config)
+    exp = experiment.Experiment(lattice=chain, sampler=sampler, max_iterations=100, config=config)
 
     # Make parameter list. We will only vary anneal time.
     for _ in range(120):
@@ -111,7 +111,7 @@ for anneal_time in ANNEAL_TIMES:
 
 title = (
     f"1D chain shim, "
-    f"{'x'.join([str(dim) for dim in inst.dimensions])}, "
+    f"{'x'.join([str(dim) for dim in chain.dimensions])}, "
     f"J={exp.param['signed_energy_scale']}, "
     f"{sampler.solver.name}"
 )

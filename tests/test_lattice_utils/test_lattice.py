@@ -19,6 +19,7 @@ from unittest import mock
 import dimod
 import numpy as np
 from dwave.samplers import SteepestDescentSolver
+from dwave.system.testing import MockDWaveSampler
 
 from dwave.experimental.lattice_utils import lattice
 from tests.test_lattice_utils._helpers import _make_embedded_chain, _make_triangular
@@ -138,9 +139,7 @@ class TestLattice(unittest.TestCase):
     def test_embed_no_embeddings_found(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = mock.MagicMock()
-            type(sampler).__name__ = "MockDWaveSampler"
-            sampler.to_networkx_graph.return_value = chain.make_networkx_graph()
+            sampler = MockDWaveSampler()
 
             with mock.patch(
                 "dwave.experimental.lattice_utils.lattice.lattice.find_multiple_embeddings",
@@ -152,9 +151,7 @@ class TestLattice(unittest.TestCase):
     def test_embed_load_existing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = mock.MagicMock()
-            type(sampler).__name__ = "MockDWaveSampler"
-            sampler.to_networkx_graph.return_value = chain.make_networkx_graph()
+            sampler = MockDWaveSampler()
 
             embeddings = np.array([[0, 1, 2, 3]])
             chain._save_embeddings(sampler, embeddings)
@@ -165,9 +162,7 @@ class TestLattice(unittest.TestCase):
     def test_embed_find_and_save(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = mock.MagicMock()
-            type(sampler).__name__ = "MockDWaveSampler"
-            sampler.to_networkx_graph.return_value = chain.make_networkx_graph()
+            sampler = MockDWaveSampler()
 
             emb_dict = {i: i for i in range(4)}
             with mock.patch(
@@ -197,7 +192,7 @@ class TestLatticeOptimize(unittest.TestCase):
 
             self.assertEqual(energy, -3)
             self.assertEqual(bqm.energy(sample), energy)
-            self.assertEqual(method, "ExponentialBackoffSimulatedAnnealingSampler")
+            self.assertEqual(method, "ExponentialSweepsSimulatedAnnealingSampler")
 
     def test_plain_lattice_private_optimize_custom_sampler(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -230,9 +225,9 @@ class TestLatticeOptimize(unittest.TestCase):
             self.assertAlmostEqual(bqm.energy(sample), energy)
             self.assertEqual(method, "SteepestDescentSolver")
 
-    def test_optimize_with_custom_exponential_backoff_params(self):
+    def test_optimize_with_custom_exponential_sweeps_params(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            sampler = lattice.ExponentialBackoffSimulatedAnnealingSampler(
+            sampler = lattice.ExponentialSweepsSimulatedAnnealingSampler(
                 max_num_sweeps=512, min_num_sweeps=64
             )
             chain = lattice.Chain(
@@ -247,7 +242,7 @@ class TestLatticeOptimize(unittest.TestCase):
 
             self.assertEqual(energy, -3)
             self.assertAlmostEqual(bqm.energy(sample), energy)
-            self.assertEqual(method, "ExponentialBackoffSimulatedAnnealingSampler")
+            self.assertEqual(method, "ExponentialSweepsSimulatedAnnealingSampler")
             self.assertEqual(sampler.max_num_sweeps, 512)
             self.assertEqual(sampler.min_num_sweeps, 64)
 

@@ -18,6 +18,7 @@ import copy
 import lzma
 import os
 import pickle
+import re
 import tempfile
 import time
 from dataclasses import dataclass
@@ -76,7 +77,7 @@ class Experiment:
     parsing results, and saving data.
 
     Args:
-        inst: The lattice instance to run the experiment on.
+        lattice: The lattice instance to run the experiment on.
         sampler: The dimod sampler to use for sampling.
         max_iterations: The maximum number of iterations to run the experiment for.
         config: An ExperimentConfig object containing experiment parameters.
@@ -85,7 +86,7 @@ class Experiment:
     def __init__(
         self,
         *,
-        inst: Lattice,
+        lattice: Lattice,
         sampler: dimod.Sampler,
         reference_energy_sampler: dimod.Sampler | None = None,
         reference_energy_sampler_kwargs: dict[str, Any] | None = None,
@@ -95,12 +96,12 @@ class Experiment:
         if config is None:
             config = ExperimentConfig()
 
-        self.inst = inst
+        self.lattice = lattice
         self.sampler = sampler
         self.reference_energy_sampler = reference_energy_sampler
         self.reference_energy_sampler_kwargs = reference_energy_sampler_kwargs
         self.param = vars(config).copy()
-        self.experiment_results_root = inst.data_root / "results"
+        self.experiment_results_root = lattice.data_root / "results"
         self.data_path = None
         self.run_index = 0
         self.config = config
@@ -123,6 +124,14 @@ class Experiment:
         ignore_shim: bool = False,
     ) -> list[dict[str, Any]]:
         """Load results from the highest-numbered iterations of the experiment.
+
+        .. warning::
+            Results are stored as LZMA-compressed **pickle** files
+            (``iter*.pkl.lzma``) and reloaded here with :func:`pickle.load`,
+            which is not secure against maliciously constructed data:
+            unpickling can execute arbitrary code. Only load result
+            directories that you created yourself or obtained from a fully
+            trusted source.
 
         Args:
             num_iterations: Maximum number of iterations to load.
@@ -152,12 +161,11 @@ class Experiment:
             except lzma.LZMAError as e:
                 raise lzma.LZMAError(f"Failing to load {filename}", e)
 
-            if result_fields is None:
-                result_fields = list(data.keys())
+            fields = list(data.keys()) if result_fields is None else result_fields
             if ignore_shim:
-                result_fields.remove("shim_data")
+                fields = [f for f in fields if f != "shim_data"]
 
-            results.append({k: data[k] for k in result_fields})
+            results.append({k: data[k] for k in fields})
 
         return results
 
@@ -208,16 +216,16 @@ class Experiment:
             raise ImportError("Progress reporting requires the optional 'tqdm' dependency.")
 
         try:
-            self.inst._load_embeddings(self.sampler)
+            self.lattice._load_embeddings(self.sampler)
         except FileNotFoundError as e:
             raise FileNotFoundError("No Embedding Found: ", e) from e
 
         if progress:
             tqdm.write(
-                f"\n{type(self.inst).__name__}={self.inst.dimensions}, "
+                f"\n{type(self.lattice).__name__}={self.lattice.dimensions}, "
                 f"J={self.param['signed_energy_scale']}, "
                 f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
-                f"({self.inst._get_instance_pathstring()}/{self._get_solver_pathstring()})"
+                f"({self.lattice._get_instance_pathstring()}/{self._get_solver_pathstring()})"
             )
 
         parameter_list = self._format_parameter_list(parameter_list)
@@ -307,12 +315,12 @@ class Experiment:
             Dictionary mapping observable names to their evaluated results across
             embeddings.
         """
-        if hasattr(self.inst, "embedding_list"):
-            embedding_list = self.inst.embedding_list
+        if hasattr(self.lattice, "embedding_list"):
+            embedding_list = self.lattice.embedding_list
             myarr = response.samples(sorted_by=None)
             sample_arrays = [myarr[:, emb].copy() for emb in embedding_list]
         else:
-            sample_arrays = [response.samples(sorted_by=None)[:, np.arange(self.inst.num_spins)]]
+            sample_arrays = [response.samples(sorted_by=None)[:, np.arange(self.lattice.num_spins)]]
 
         sample_set = {}
         for iemb, sample_array in enumerate(sample_arrays):
@@ -466,6 +474,7 @@ class Experiment:
         pathstring = None
         rules = [
             (lambda s: s == "DWaveSampler", "qpu"),
+            (lambda s: s == "MockDWaveSampler", "MockDWaveSampler"),
         ]
         for check, label in rules:
             if check(type(self.sampler).__name__):
@@ -487,30 +496,28 @@ class Experiment:
         signed_energy_scale = self.param["signed_energy_scale"]
 
         if "anneal_time" in self.param:
-            pathstring = (
-                f'energyscale{signed_energy_scale:0.3}/atime{self.param["anneal_time"]:010.6f}us'
-            )
+            parts = [
+                f"energyscale{signed_energy_scale:0.3}",
+                f'atime{self.param["anneal_time"]:010.6f}us',
+            ]
         elif "anneal_schedule" in self.param:
-            pathstring = (
-                f'energyscale{signed_energy_scale:0.3}/asched{self.param["anneal_schedule"]}'
-            )
+            parts = [
+                f"energyscale{signed_energy_scale:0.3}",
+                f'asched{self.param["anneal_schedule"]}',
+            ]
         else:
             raise ValueError(
                 "Parameter list must contain either 'anneal_time' or 'anneal_schedule'."
             )
 
-        # Strip spaces and replace other unswanted symbols with underscores.
-        pathstring = pathstring.replace(" ", "_")
-        for bad_symbol in ":;,":
-            pathstring = pathstring.replace(bad_symbol, "")
-
-        return pathstring
+        parts = [re.sub(r"[^A-Za-z0-9._-]", "_", p) for p in parts]
+        return "/".join(parts)
 
     def _get_relative_data_path(self) -> str:
         """Make a subdirectory name for a sampler call's data."""
         return "/".join(
             [
-                self.inst._get_instance_pathstring(),
+                self.lattice._get_instance_pathstring(),
                 self._get_solver_pathstring(),
                 self._get_parameter_pathstring(),
             ]
@@ -518,12 +525,12 @@ class Experiment:
 
     def _make_logical_bqms(self) -> list[dimod.BQM]:
         """Make logical BQMs for the experiment."""
-        logical_bqm = self.inst.make_bqm()
+        logical_bqm = self.lattice.make_bqm()
 
-        if not hasattr(self.inst, "embedding_list"):
+        if not hasattr(self.lattice, "embedding_list"):
             return [logical_bqm]
 
-        return [logical_bqm] * len(self.inst.embedding_list)
+        return [logical_bqm] * len(self.lattice.embedding_list)
 
     def _build_sampler_call(self) -> None | SamplerCall:
         """Build the sampler call using attributes of the experiment and instance.
@@ -633,11 +640,13 @@ class Experiment:
     def _make_initial_shim(self) -> dict[str, Any]:
         """Create the initial shim and dictate what shim will be saved and modified."""
         shim_data = {"total_iterations": 0}
-        if hasattr(self.inst, "embedding_list"):
-            num_embeddings = len(self.inst.embedding_list)
+        if hasattr(self.lattice, "embedding_list"):
+            num_embeddings = len(self.lattice.embedding_list)
             shim_data["flux_biases"] = np.zeros(self.sampler.properties["num_qubits"])
             shim_data["anneal_offsets"] = np.zeros(self.sampler.properties["num_qubits"])
-            shim_data["relative_coupler_strength"] = np.ones((num_embeddings, self.inst.num_edges))
+            shim_data["relative_coupler_strength"] = np.ones(
+                (num_embeddings, self.lattice.num_edges)
+            )
 
         if self.param.get("flux_biases", None) is not None:
             shim_data["flux_biases"] = self.param.get("flux_biases")
@@ -686,7 +695,7 @@ class Experiment:
         shim_step = self.param["flux_bias_shim_step"]
 
         steps = shim_step * (qubit_magnetization.ravel() - target_magnetization)
-        flux_biases[self.inst.embedding_list.ravel()] -= steps
+        flux_biases[self.lattice.embedding_list.ravel()] -= steps
         mean_magnetization = np.mean(qubit_magnetization)
 
         if target_magnetization > 0:
@@ -708,7 +717,7 @@ class Experiment:
         step_size: float | None = None,
     ) -> None:
         """Update relative coupler strength based on measured frustration."""
-        orbits = self.inst.coupler_orbits
+        orbits = self.lattice.coupler_orbits
         signed_energy_scale = self.param["signed_energy_scale"]
         relative_coupler_strength = sampler_call.shim_data["relative_coupler_strength"]
 
@@ -727,7 +736,7 @@ class Experiment:
             raise NotImplementedError("Case for distinct embedded BQMs not implemented yet.")
 
         bqm = bqms[0]
-        logical_values = np.array([bqm.quadratic[edge] for edge in self.inst.edge_list])
+        logical_values = np.array([bqm.quadratic[edge] for edge in self.lattice.edge_list])
         coupler_signs = np.sign(logical_values)
         for orbit_bin in range(max(orbits) + 1):
             bin_edges = np.argwhere(orbits == orbit_bin).ravel()
@@ -816,30 +825,30 @@ class Experiment:
         """Construct a BQM for the current sampler call."""
         signed_energy_scale = self.param["signed_energy_scale"]
         bqm = dimod.BQM(vartype="SPIN")
-        if not hasattr(self.inst, "embedding_list"):
+        if not hasattr(self.lattice, "embedding_list"):
             logical_bqm = sampler_call.logical_bqms[0]
 
-            for v in range(self.inst.num_spins):
+            for v in range(self.lattice.num_spins):
                 # Make sure variables appear in the correct order when dealing with software solvers
                 bqm.add_variable(v)
                 if v in logical_bqm.variables:
                     bqm.add_linear(v, logical_bqm.linear[v])
 
-            for u, v in self.inst.edge_list:
+            for u, v in self.lattice.edge_list:
                 bqm.add_quadratic(u, v, logical_bqm.quadratic[u, v] * signed_energy_scale)
 
             return bqm
 
         relative_coupler_strength = sampler_call.shim_data["relative_coupler_strength"]
-        for iemb, emb in enumerate(self.inst.embedding_list):
+        for iemb, emb in enumerate(self.lattice.embedding_list):
             logical_bqm = sampler_call.logical_bqms[iemb].copy()
 
-            for v in range(self.inst.num_spins):
+            for v in range(self.lattice.num_spins):
                 # Don't touch degree-zero spins.  Relevant to partial yield.
                 if logical_bqm.degree(v) > 0:
                     bqm.add_linear(emb[v], logical_bqm.linear[v])
 
-            for iedge, edge in enumerate(self.inst.edge_list):
+            for iedge, edge in enumerate(self.lattice.edge_list):
                 bias = (
                     logical_bqm.quadratic[tuple(edge)]
                     * relative_coupler_strength[iemb, iedge]

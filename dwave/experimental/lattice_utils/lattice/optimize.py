@@ -22,12 +22,12 @@ from dwave.samplers import SimulatedAnnealingSampler
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
-    from dwave.experimental.lattice_utils.experiment.experiment import Lattice
+    from dwave.experimental.lattice_utils.lattice.lattice import Lattice
 
-__all__ = ['optimize', 'ExponentialBackoffSimulatedAnnealingSampler']
+__all__ = ['optimize', 'ExponentialSweepsSimulatedAnnealingSampler']
 
 
-class ExponentialBackoffSimulatedAnnealingSampler(dimod.Sampler):
+class ExponentialSweepsSimulatedAnnealingSampler(dimod.Sampler):
     """SA sampler that doubles num_sweeps until energy stops improving or a cap is hit.
 
     Starts at ``min_num_sweeps`` and doubles after each round that improves the
@@ -44,14 +44,29 @@ class ExponentialBackoffSimulatedAnnealingSampler(dimod.Sampler):
     parameters = None
 
     def __init__(self, max_num_sweeps=1024, min_num_sweeps=256):
+        if min_num_sweeps > max_num_sweeps:
+            raise ValueError(
+                f"min_num_sweeps ({min_num_sweeps}) must be <= max_num_sweeps ({max_num_sweeps})"
+            )
         self.sampler = SimulatedAnnealingSampler()
         self.max_num_sweeps = max_num_sweeps
         self.min_num_sweeps = min_num_sweeps
         self.properties = self.sampler.properties.copy()
         self.parameters = self.sampler.parameters.copy()
 
-    def sample(self, bqm, **parameters):
+    def sample(self, bqm, **parameters) -> dimod.SampleSet:
+        """Sample the BQM using simulated annealing with exponential sweeps.
+
+        Args:
+            bqm: The binary quadratic model to sample.
+            **parameters: Additional keyword arguments to pass to the underlying
+                sampler, such as ``num_reads`` and ``num_sweeps``.
+        """
         num_sweeps = parameters.pop("num_sweeps", self.min_num_sweeps)
+        if num_sweeps > self.max_num_sweeps:
+            raise ValueError(
+                f"num_sweeps ({num_sweeps}) must be <= max_num_sweeps ({self.max_num_sweeps})"
+            )
         num_reads = parameters.pop("num_reads", 256)
 
         best_energy = np.inf
@@ -95,7 +110,7 @@ def optimize(
             physical lattice.
         bqm: The binary quadratic model to optimize.
         sampler: A dimod Sampler to use for optimization of the reference energy.
-            If None, a default ExponentialBackoffSimulatedAnnealingSampler will
+            If None, a default ExponentialSweepsSimulatedAnnealingSampler will
             be used.
         sampler_kwargs: Optional keyword arguments to pass to the provided
             sampler, such as ``num_reads`` and ``num_sweeps`` in the case of a
@@ -109,12 +124,13 @@ def optimize(
         sampler_kwargs = {}
 
     if sampler is None:
-        sampler = ExponentialBackoffSimulatedAnnealingSampler()
+        sampler = ExponentialSweepsSimulatedAnnealingSampler()
 
     reference_energy = np.inf
     reference_sample = None
 
     # If the lattice is embedded, we should optimize the logical lattice
+    #if isinstance(lattice, EmbeddedLattice):
     if hasattr(lattice, "logical_lattice"):
         _, logical_sample, _ = optimize(
             lattice.logical_lattice,

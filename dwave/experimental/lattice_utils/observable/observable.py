@@ -109,10 +109,10 @@ class CouplerCorrelation(Observable):
             A numpy array containing the pairwise spin correlations for each coupler.
         """
         sample_array = dimod.as_samples(sample_set)[0].astype(float)
-        if not experiment.inst.edge_list:
+        if not experiment.lattice.edge_list:
             return np.empty(0, dtype=float)
 
-        row, col = np.asarray(experiment.inst.edge_list).T
+        row, col = np.asarray(experiment.lattice.edge_list).T
         spin_product = np.matmul(sample_array.T, sample_array)[row, col] / len(sample_array)
         return spin_product
 
@@ -137,13 +137,13 @@ class CouplerFrustration(Observable):
             A numpy array containing the mean coupler frustration for each edge.
         """
         sample_array = dimod.as_samples(sample_set)[0].astype(float)
-        if not experiment.inst.edge_list:
+        if not experiment.lattice.edge_list:
             return np.empty(0, dtype=float)
 
-        row, col = np.asarray(experiment.inst.edge_list).T
+        row, col = np.asarray(experiment.lattice.edge_list).T
         spin_product = np.matmul(sample_array.T, sample_array)[row, col] / len(sample_array)
         coupler_signs = np.sign(
-            [bqm.quadratic[edge] for edge in experiment.inst.edge_list]
+            [bqm.quadratic[edge] for edge in experiment.lattice.edge_list]
         ) * np.sign(experiment.param["signed_energy_scale"])
 
         return spin_product * coupler_signs / 2 + 1 / 2
@@ -214,7 +214,7 @@ class ReferenceEnergy(Observable):
         bqm: dimod.BQM,
         sample_set: dimod.SampleSet,
         path: str | Path | None = None,
-        inst: Lattice | None = None,
+        lattice: Lattice | None = None,
     ) -> float:
         """Get the reference energy for the given BQM, computing and caching it
         if needed.
@@ -242,9 +242,9 @@ class ReferenceEnergy(Observable):
 
         # And if we can't load, we generate a reference sample.
         if experiment is not None:
-            energy, sample, method_string = experiment.inst.optimize(bqm)
-        elif inst is not None:
-            energy, sample, method_string = inst.optimize(bqm)
+            energy, sample, method_string = experiment.lattice.optimize(bqm)
+        elif lattice is not None:
+            energy, sample, method_string = lattice.optimize(bqm)
         else:
             raise ValueError(
                 "Must provide either an experiment or a lattice to compute reference energy."
@@ -348,7 +348,7 @@ def get_reference_energy_path(
         experiment: The experiment for which to get the reference energy path.
         root: Optional root directory to use instead of the experiment's data root.
         dummy_experiment_data_dict: A dictionary containing the keys ``run_index``,
-            ``num_random_instances``, and ``inst`` to use when no experiment is
+            ``num_random_instances``, and ``lattice`` to use when no experiment is
             provided. This allows for generation of dummy experiment data without
             all the overhead, for running without an actual experiment.
 
@@ -363,11 +363,11 @@ def get_reference_energy_path(
         experiment_data_dict = {
             "run_index": experiment.run_index,
             "num_random_instances": experiment.param["num_random_instances"],
-            "inst": experiment.inst,
+            "lattice": experiment.lattice,
         }
 
     if root is None:
-        root = experiment_data_dict["inst"].data_root
+        root = experiment_data_dict["lattice"].data_root
     else:
         root = Path(root)
 
@@ -375,12 +375,12 @@ def get_reference_energy_path(
         root
         / "lattice_data"
         / "reference_energies"
-        / experiment_data_dict["inst"]._get_instance_pathstring()
+        / experiment_data_dict["lattice"]._get_instance_pathstring()
     )
 
-    # Use hash. BQM is not hashable so use the experiment.inst data to generate a tuple.
+    # Use hash. BQM is not hashable so use the experiment.lattice data to generate a tuple.
     bqm_as_tuple = tuple(bqm.linear[v] for v in sorted(bqm.variables)) + tuple(
-        bqm.quadratic[e] for e in experiment_data_dict["inst"].edge_list
+        bqm.quadratic[e] for e in experiment_data_dict["lattice"].edge_list
     )
     bqm_hash = hash(bqm_as_tuple)
     path = path / str(bqm_hash)

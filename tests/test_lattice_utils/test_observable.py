@@ -114,8 +114,8 @@ class TestReferenceEnergy(unittest.TestCase):
             bqm = chain.make_bqm()
             obs = observable.ReferenceEnergy()
 
-            path1 = Path(tmpdir) / "ref_inst.txt"
-            energy1 = obs.evaluate(None, bqm, None, path=path1, inst=chain)
+            path1 = Path(tmpdir) / "ref_lattice.txt"
+            energy1 = obs.evaluate(None, bqm, None, path=path1, lattice=chain)
             self.assertTrue(path1.exists())
             # Second call loads from cache — same value
             energy1b = obs.evaluate(None, bqm, None, path=path1)

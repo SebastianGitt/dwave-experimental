@@ -210,7 +210,10 @@ def get_unsigned_bqm_orbits(
     return reindex(qubit_orbits), reindex(coupler_orbits)
 
 
-def get_orbits(bqm: dimod.BQM, edge_list: list[int, int]) -> tuple[NDArray, NDArray]:
+def get_orbits(
+    bqm: dimod.BQM,
+    edge_list: list[tuple[Hashable, Hashable]],
+) -> tuple[NDArray, NDArray]:
     """Provide a bqm and receive a set of usable orbits derived from the signed BQM.
 
     Args:

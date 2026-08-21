@@ -21,6 +21,7 @@ import numpy as np
 from dimod import BQM
 from numpy.typing import NDArray
 
+from dwave.experimental.lattice_utils.lattice.embedded_lattice import EmbeddedLattice
 from dwave.experimental.lattice_utils.observable.observable import Observable
 
 if TYPE_CHECKING:
@@ -53,14 +54,14 @@ class TriangularOP(Observable):
         """
 
         # If the lattice is an embedded lattice then the BQM and sampleset must be unembedded.
-        if hasattr(experiment.inst, "logical_lattice"):
-            lbqm = experiment.inst.unembed_bqm(bqm)
+        if isinstance(experiment.lattice, EmbeddedLattice):
+            lbqm = experiment.inslatticet.unembed_bqm(bqm)
 
-            lss = experiment.inst.unembed_sampleset(sample_set)
-            triangular_sublattice = experiment.inst.logical_lattice.sublattice
+            lss = experiment.lattice.unembed_sampleset(sample_set)
+            triangular_sublattice = experiment.lattice.logical_lattice.sublattice
         else:
             lbqm, lss = bqm, sample_set
-            triangular_sublattice = experiment.inst.sublattice
+            triangular_sublattice = experiment.lattice.sublattice
 
         sample_array = dimod.as_samples(lss)[0]
 

@@ -21,9 +21,9 @@ from unittest import mock
 
 import dimod
 import numpy as np
+from dwave.system.testing import MockDWaveSampler
 
 from dwave.experimental.lattice_utils import experiment, lattice
-from tests.test_lattice_utils._helpers import _make_mock_sampler
 
 
 class TestSamplerCall(unittest.TestCase):
@@ -53,43 +53,43 @@ class TestExperimentInit(unittest.TestCase):
     def test_default_params(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             self.assertEqual(exp.param["signed_energy_scale"], 1.0)
             self.assertEqual(exp.param["num_reads"], 100)
-            self.assertIs(exp.inst, chain)
+            self.assertIs(exp.lattice, chain)
 
 
 class TestApplyParam(unittest.TestCase):
     def test_data_path_with_schedule(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.apply_param({"signed_energy_scale": 1.0, "anneal_schedule": [(0, 1), (5, 0.5)]})
             self.assertIn("asched", str(exp.data_path))
 
     def test_apply_param_unknown_sampler_raises(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler(type_name="UnknownSampler")
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = dimod.ExactSolver()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             with self.assertRaises(TypeError):
                 exp.apply_param({"signed_energy_scale": 1.0, "anneal_time": 1.0})
 
     def test_apply_param_sets_run_index_zero(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.apply_param({"signed_energy_scale": 1.0, "anneal_time": 1.0})
             self.assertEqual(exp.run_index, 0)
 
     def test_apply_param_resumes_from_existing_iterations(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.apply_param({"signed_energy_scale": 1.0, "anneal_time": 1.0})
             for i in range(3):
                 fn = exp.data_path / f"iter{i:05d}.pkl.lzma"
@@ -101,12 +101,12 @@ class TestApplyParam(unittest.TestCase):
             self.assertEqual(exp.run_index, 3)
 
 
-class TestShimdata(unittest.TestCase):
+class TestShimData(unittest.TestCase):
     def test_initial_shim_no_embeddings(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.already_initialized = False
             shim_data = exp._make_initial_shim()
             self.assertEqual(shim_data["total_iterations"], 0)
@@ -116,8 +116,8 @@ class TestShimdata(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
             chain.embedding_list = np.array([[0, 1, 2, 3]])
-            sampler = _make_mock_sampler(num_qubits=128)
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             shim_data = exp._make_initial_shim()
             self.assertIn("flux_biases", shim_data)
             self.assertEqual(len(shim_data["flux_biases"]), 128)
@@ -126,9 +126,9 @@ class TestShimdata(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
             chain.embedding_list = np.array([[0, 1, 2, 3]])
-            sampler = _make_mock_sampler(num_qubits=128)
+            sampler = MockDWaveSampler()
             fb = np.ones(128) * 0.01
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.param["flux_biases"] = fb
             shim_data = exp._make_initial_shim()
             np.testing.assert_array_almost_equal(shim_data["flux_biases"], fb)
@@ -136,8 +136,8 @@ class TestShimdata(unittest.TestCase):
     def test_load_shim_from_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.run_index = 1
             exp.data_path = Path(tmpdir)
 
@@ -153,8 +153,8 @@ class TestShimdata(unittest.TestCase):
     def test_load_shim_empty_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.run_index = 1
             exp.data_path = Path(tmpdir)
 
@@ -167,8 +167,8 @@ class TestShimdata(unittest.TestCase):
     def test_load_shim_corrupted_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.run_index = 1
             exp.data_path = Path(tmpdir)
             fn = Path(tmpdir) / "iter00000.pkl.lzma"
@@ -180,8 +180,8 @@ class TestShimdata(unittest.TestCase):
     def test_load_shim_missing_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.data_path = Path(tmpdir)
             exp.run_index = 1
 
@@ -191,8 +191,8 @@ class TestShimdata(unittest.TestCase):
     def test_get_shim_data_not_initialized(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.already_initialized = False
             shim_data = exp._get_shim_data()
             self.assertEqual(shim_data["total_iterations"], 0)
@@ -213,9 +213,9 @@ class TestCouplerShim(unittest.TestCase):
                 orbit_type="global",  # all edges in one bin -> update is non-trivial
             )
             chain.embedding_list = np.array([[0, 1, 2, 3]])
-            sampler = _make_mock_sampler()
+            sampler = MockDWaveSampler()
             exp = experiment.Experiment(
-                inst=chain,
+                lattice=chain,
                 sampler=sampler,
                 config=experiment.ExperimentConfig(coupler_shim_step=0.01, signed_energy_scale=0.5),
             )
@@ -248,9 +248,9 @@ class TestCouplerShim(unittest.TestCase):
                 orbit_type="singleton",
             )
             chain.embedding_list = np.array([[0, 1, 2, 3]])
-            sampler = _make_mock_sampler()
+            sampler = MockDWaveSampler()
             exp = experiment.Experiment(
-                inst=chain,
+                lattice=chain,
                 sampler=sampler,
                 config=experiment.ExperimentConfig(coupler_shim_step=0.01),
             )
@@ -273,8 +273,8 @@ class TestSaveLoadResults(unittest.TestCase):
     def test_save_and_reload(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.data_path = Path(tmpdir)
             exp.run_index = 0
             data = {"QubitMagnetization": np.zeros(4)}
@@ -289,8 +289,8 @@ class TestSaveLoadResults(unittest.TestCase):
     def test_save_with_filename_and_run_index_raises(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.data_path = Path(tmpdir)
             with self.assertRaises(ValueError):
                 exp._save_results({}, run_index=0, filename="test.pkl.lzma")
@@ -298,8 +298,8 @@ class TestSaveLoadResults(unittest.TestCase):
     def test_save_custom_filename(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.data_path = Path(tmpdir)
             data = {"x": 1}
             exp._save_results(data, filename="custom.pkl.lzma")
@@ -308,8 +308,8 @@ class TestSaveLoadResults(unittest.TestCase):
     def test_load_results_ignore_shim(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.apply_param({"signed_energy_scale": 1.0, "anneal_time": 1.0})
             fn = exp.data_path / "iter00000.pkl.lzma"
             fn.parent.mkdir(parents=True, exist_ok=True)
@@ -322,8 +322,8 @@ class TestSaveLoadResults(unittest.TestCase):
     def test_load_results_starting_iteration(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.apply_param({"signed_energy_scale": 1.0, "anneal_time": 1.0})
             for i in range(10):
                 fn = exp.data_path / f"iter{i:05d}.pkl.lzma"
@@ -337,8 +337,8 @@ class TestSaveLoadResults(unittest.TestCase):
     def test_load_results_corrupted_lzma(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             exp.apply_param({"signed_energy_scale": 1.0, "anneal_time": 1.0})
             fn = exp.data_path / "iter00000.pkl.lzma"
             fn.parent.mkdir(parents=True, exist_ok=True)
@@ -350,8 +350,8 @@ class TestSaveLoadResults(unittest.TestCase):
     def test_generate_data_type_conversions(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
-            exp = experiment.Experiment(inst=chain, sampler=sampler)
+            sampler = MockDWaveSampler()
+            exp = experiment.Experiment(lattice=chain, sampler=sampler)
             sc = experiment.SamplerCall(run_index=0)
             sc.shim_data = {"total_iterations": 1, "flux_biases": np.zeros(4)}
 
@@ -370,9 +370,9 @@ class TestMakeBqm(unittest.TestCase):
     def test_make_bqm_no_embeddings(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(False,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
+            sampler = MockDWaveSampler()
             exp = experiment.Experiment(
-                inst=chain,
+                lattice=chain,
                 sampler=sampler,
                 config=experiment.ExperimentConfig(signed_energy_scale=0.5),
             )
@@ -388,9 +388,9 @@ class TestMakeBqm(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(False,), data_root=tmpdir)
             chain.embedding_list = np.array([[10, 11, 12, 13]])  # offset to detect mapping
-            sampler = _make_mock_sampler()
+            sampler = MockDWaveSampler()
             exp = experiment.Experiment(
-                inst=chain,
+                lattice=chain,
                 sampler=sampler,
                 config=experiment.ExperimentConfig(signed_energy_scale=0.5),
             )
@@ -416,8 +416,9 @@ class TestRunIteration(unittest.TestCase):
         """run_iteration() exercises the full pipeline: build call, sample, parse, shim, save."""
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(False,), data_root=tmpdir)
+            chain.embedding_list = np.array([[0, 4, 1, 5]])
             exp = experiment.Experiment(
-                inst=chain, sampler=_make_mock_sampler(sync_response=True), max_iterations=1
+                lattice=chain, sampler=MockDWaveSampler(parameter_warnings=False), max_iterations=1
             )
             chain._load_embeddings = mock.MagicMock()
             finished = exp.run_iteration([{"signed_energy_scale": 1.0, "anneal_time": 1.0}])
@@ -439,8 +440,8 @@ class TestRunIteration(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(False,), data_root=tmpdir)
             exp = experiment.Experiment(
-                inst=chain,
-                sampler=_make_mock_sampler(sync_response=True),
+                lattice=chain,
+                sampler=MockDWaveSampler(),
                 config=experiment.ExperimentConfig(),
                 max_iterations=0,
             )
@@ -455,9 +456,9 @@ class TestFastAnnealExperiment(unittest.TestCase):
     def test_default_params(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(True,), data_root=tmpdir)
-            sampler = _make_mock_sampler()
+            sampler = MockDWaveSampler()
             config = experiment.FastAnnealExperimentConfig()
-            exp = experiment.Experiment(inst=chain, sampler=sampler, config=config)
+            exp = experiment.Experiment(lattice=chain, sampler=sampler, config=config)
             self.assertTrue(exp.param.get("fast_anneal"))
             self.assertEqual(exp.param["num_reads"], 100)
 

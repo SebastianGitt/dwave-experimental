@@ -61,7 +61,7 @@ class EmbeddedLattice(Lattice):
             raise TypeError("logical_lattice must be a Lattice instance.")
 
         self.logical_lattice = logical_lattice
-        if hasattr(self.logical_lattice, "logical_lattice"):
+        if isinstance(self.logical_lattice, EmbeddedLattice):
             raise NotImplementedError("Nested embedded lattices not supported.")
 
         if data_root is None:
@@ -132,23 +132,15 @@ class EmbeddedLattice(Lattice):
             for edge in self.get_chain_connectivity(u, v):
                 yield u_chain[edge[0]], v_chain[edge[1]]
 
-    def make_bqm(self, **kwargs) -> dimod.BQM:
+    def make_bqm(self) -> dimod.BQM:
         """Construct the physical BQM for this embedded lattice.
 
-        Overrides the base class ``make_bqm`` for the
-
-        Args:
-            kwargs: Keyword arguments to pass to the logical lattice's
-                `make_bqm` method.
+        Overrides the base class ``make_bqm`` for the embedded lattice case.
 
         Returns:
             A dimod.BQM representing the embedded logical BQM.
         """
-        if hasattr(self, "fixed_seed"):
-            self.logical_lattice.fixed_seed = self.fixed_seed
-            kwargs.pop("seed", None)
-
-        return self.embed_bqm(self.logical_lattice.make_bqm(**kwargs))
+        return self.embed_bqm(self.logical_lattice.make_bqm())
 
     def embed_bqm(self, logical_bqm: dimod.BQM) -> dimod.BQM:
         """Embed a logical BQM onto the physical lattice.
