@@ -55,7 +55,7 @@ class TriangularOP(Observable):
 
         # If the lattice is an embedded lattice then the BQM and sampleset must be unembedded.
         if isinstance(experiment.lattice, EmbeddedLattice):
-            lbqm = experiment.inslatticet.unembed_bqm(bqm)
+            lbqm = experiment.lattice.unembed_bqm(bqm)
 
             lss = experiment.lattice.unembed_sampleset(sample_set)
             triangular_sublattice = experiment.lattice.logical_lattice.sublattice

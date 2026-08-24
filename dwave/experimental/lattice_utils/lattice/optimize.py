@@ -120,6 +120,8 @@ def optimize(
         A tuple containing the best energy found, the corresponding sample as a
         NumPy array, and a string indicating the optimization method used.
     """
+    from dwave.experimental.lattice_utils.lattice.embedded_lattice import EmbeddedLattice
+
     if sampler_kwargs is None:
         sampler_kwargs = {}
 
@@ -130,8 +132,7 @@ def optimize(
     reference_sample = None
 
     # If the lattice is embedded, we should optimize the logical lattice
-    #if isinstance(lattice, EmbeddedLattice):
-    if hasattr(lattice, "logical_lattice"):
+    if isinstance(lattice, EmbeddedLattice):
         _, logical_sample, _ = optimize(
             lattice.logical_lattice,
             lattice.unembed_bqm(bqm),

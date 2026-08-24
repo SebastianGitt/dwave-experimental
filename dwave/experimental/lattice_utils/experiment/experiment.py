@@ -677,7 +677,10 @@ class Experiment:
 
     def _update_shim(self, sampler_call: SamplerCall, results: dict[str, Any]) -> None:
         """Update shim parameters according to shim data and parameters."""
-        if "flux_biases" in sampler_call.shim_data and self.param.get("flux_bias_shim_step", 0) != 0:
+        if (
+            "flux_biases" in sampler_call.shim_data
+            and self.param.get("flux_bias_shim_step", 0) != 0
+        ):
             self._update_flux_bias_shim(sampler_call, results)
         if (
             "relative_coupler_strength" in sampler_call.shim_data

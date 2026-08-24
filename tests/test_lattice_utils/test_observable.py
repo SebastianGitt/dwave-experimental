@@ -20,7 +20,7 @@ import dimod
 import numpy as np
 
 from dwave.experimental.lattice_utils import lattice, observable
-from tests.test_lattice_utils._helpers import _make_mock_experiment, _make_triangular
+from tests.test_lattice_utils._helpers import _make_experiment, _make_triangular
 
 
 class TestQubitMagnetization(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestQubitMagnetization(unittest.TestCase):
             bqm = chain.make_bqm()
             samples = np.array([[1, 1, -1, -1], [-1, -1, 1, 1]])
             ss = dimod.SampleSet.from_samples_bqm(samples, bqm)
-            exp = _make_mock_experiment(chain)
+            exp = _make_experiment(chain)
             result = observable.QubitMagnetization().evaluate(exp, bqm, ss)
             np.testing.assert_array_equal(result, [0.0, 0.0, 0.0, 0.0])
 
@@ -40,7 +40,7 @@ class TestCouplerCorrelation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             chain = lattice.Chain(dimensions=(4,), periodic=(False,), data_root=tmpdir)
             bqm = chain.make_bqm()
-            exp = _make_mock_experiment(chain)
+            exp = _make_experiment(chain)
             alt = np.tile([1, -1, 1, -1], (4, 1))
             ss_alt = dimod.SampleSet.from_samples_bqm(alt, bqm)
             np.testing.assert_array_equal(
@@ -57,7 +57,7 @@ class TestCouplerFrustration(unittest.TestCase):
             bqm = chain.make_bqm()
             samples = np.ones((4, 4))
             ss = dimod.SampleSet.from_samples_bqm(samples, bqm)
-            exp = _make_mock_experiment(chain)
+            exp = _make_experiment(chain)
             np.testing.assert_array_almost_equal(
                 observable.CouplerFrustration().evaluate(exp, bqm, ss), np.ones(chain.num_edges)
             )
@@ -71,7 +71,7 @@ class TestSampleEnergy(unittest.TestCase):
             # All-ones: energy = sum of J for 3 edges = 3
             samples = np.ones((1, 4))
             ss = dimod.SampleSet.from_samples_bqm(samples, bqm)
-            exp_pos = _make_mock_experiment(chain, signed_energy_scale=1.0)
+            exp_pos = _make_experiment(chain, signed_energy_scale=1.0)
             np.testing.assert_array_almost_equal(
                 observable.SampleEnergy().evaluate(exp_pos, bqm, ss), [3]
             )
@@ -84,7 +84,7 @@ class TestBitpackedSpins(unittest.TestCase):
             bqm = chain.make_bqm()
             samples = np.array([[1, -1, 1, -1], [-1, 1, -1, 1]])
             ss = dimod.SampleSet.from_samples_bqm(samples, bqm)
-            exp = _make_mock_experiment(chain)
+            exp = _make_experiment(chain)
             packed, shape = observable.BitpackedSpins().evaluate(exp, bqm, ss)
             self.assertEqual(shape, (2, 4))
             # Unpack and verify round-trip
@@ -102,7 +102,7 @@ class TestReferenceEnergy(unittest.TestCase):
             obs = observable.ReferenceEnergy()
             obs.save(path, -3, sample, "SA")
 
-            exp = _make_mock_experiment(chain)
+            exp = _make_experiment(chain)
             energy, loaded_sample, method = obs.load(exp, bqm, path)
             self.assertEqual(energy, -3)
             self.assertEqual(method, "SA")
@@ -121,7 +121,7 @@ class TestReferenceEnergy(unittest.TestCase):
             energy1b = obs.evaluate(None, bqm, None, path=path1)
             self.assertAlmostEqual(energy1, energy1b)
 
-            exp = _make_mock_experiment(chain, run_index=0, num_random_instances=1)
+            exp = _make_experiment(chain, num_random_instances=1)
             path2 = Path(tmpdir) / "ref_exp.txt"
             energy2 = obs.evaluate(exp, bqm, None, path=path2)
             self.assertTrue(path2.exists())
@@ -133,7 +133,7 @@ class TestReferenceEnergy(unittest.TestCase):
             chain = lattice.Chain(dimensions=(4,), periodic=(False,), data_root=tmpdir)
             bqm = chain.make_bqm()
             obs = observable.ReferenceEnergy()
-            exp = _make_mock_experiment(chain)
+            exp = _make_experiment(chain)
 
             bad_sample = np.ones(4)
             obs.save(path, bqm.energy(bad_sample), bad_sample, "SA")
@@ -155,7 +155,7 @@ class TestKinks(unittest.TestCase):
             bqm = chain.make_bqm()
             samples = np.ones((10, 6))
             ss = dimod.SampleSet.from_samples_bqm(samples, bqm)
-            exp = _make_mock_experiment(chain)
+            exp = _make_experiment(chain)
             result = observable.KinkKinkCorrelator().evaluate(exp, bqm, ss)
             np.testing.assert_array_equal(result, np.zeros(6))
 
@@ -166,7 +166,7 @@ class TestKinks(unittest.TestCase):
             # [1,1,-1,-1,1,1]: kink at sites 2,4 (domain walls)
             samples = np.tile([1, 1, -1, -1, 1, 1], (20, 1))
             ss = dimod.SampleSet.from_samples_bqm(samples, bqm)
-            exp = _make_mock_experiment(chain)
+            exp = _make_experiment(chain)
             result = observable.KinkKinkCorrelator().evaluate(exp, bqm, ss)
             expected = np.array([0.0, -0.25, 0.125, -0.25, 0.125, -0.25])
             np.testing.assert_array_almost_equal(result, expected)
@@ -179,7 +179,22 @@ class TestTriangularOP(unittest.TestCase):
             bqm = tri.make_bqm()
             samples = np.ones((5, 9))
             ss = dimod.SampleSet.from_samples_bqm(samples, bqm)
-            exp = _make_mock_experiment(tri)
+            exp = _make_experiment(tri)
+            result = observable.TriangularOP().evaluate(exp, bqm, ss)
+            np.testing.assert_array_almost_equal(np.abs(result), np.zeros(5), decimal=10)
+
+    def test_embedded_uniform_state_vanishes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dt = lattice.DimerizedTriangular(
+                dimensions=(3, 3),
+                periodic=(True, False),
+                data_root=tmpdir,
+                orbit_type="singleton",
+            )
+            bqm = dt.make_bqm()
+            samples = np.ones((5, dt.num_spins))
+            ss = dimod.SampleSet.from_samples_bqm(samples, bqm)
+            exp = _make_experiment(dt)
             result = observable.TriangularOP().evaluate(exp, bqm, ss)
             np.testing.assert_array_almost_equal(np.abs(result), np.zeros(5), decimal=10)
 

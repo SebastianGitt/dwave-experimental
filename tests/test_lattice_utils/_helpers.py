@@ -14,18 +14,14 @@
 
 """Shared test fixtures for the ``lattice_utils`` test package."""
 
-from unittest import mock
-
 import dimod
-#import numpy as np
-from dwave.system.testing import MockDWaveSampler
 
+from dwave.experimental.lattice_utils import experiment
 from dwave.experimental.lattice_utils import lattice
 
 __all__ = [
     "_make_triangular",
-    "_make_mock_sampler",
-    "_make_mock_experiment",
+    "_make_experiment",
     "_make_embedded_chain",
 ]
 
@@ -47,64 +43,14 @@ def _make_triangular(
     )
 
 
-# def _make_mock_sampler(
-#     num_qubits=128,
-#     nodelist=None,
-#     solver_name="TestSolver",
-#     type_name="DWaveSampler",
-#     *,
-#     sync_response=False,
-# ):
-#     """Build a mock sampler resembling DWaveSampler.
-
-#     Production code detects the sampler via ``type(sampler).__name__`` and reads
-#     ``nodelist``, ``properties["num_qubits"]``, and ``solver.name``. When
-#     ``sync_response`` is True, ``sampler.sample(...)`` returns a mock response
-#     mimicking the DWaveSampler async interface (``.done()`` -> True,
-#     ``.samples()`` -> all-ones ndarray) used by ``run_iteration`` tests.
-#     """
-#     sampler = mock.MagicMock(spec=dimod.Sampler)
-#     type(sampler).__name__ = type_name
-#     if nodelist is None:
-#         nodelist = list(range(num_qubits))
-#     sampler.nodelist = nodelist
-#     sampler.properties = {"num_qubits": num_qubits}
-#     sampler.solver = mock.MagicMock()
-#     sampler.solver.name = solver_name
-#     if sync_response:
-#         response = mock.MagicMock()
-#         response.done.return_value = True
-#         response.samples.return_value = np.ones((10, num_qubits), dtype=float)
-#         sampler.sample.return_value = response
-#     return sampler
-def _make_mock_sampler(
-        num_qubits=128,
-        type_name="DWaveSampler",
-        *,
-        sync_response=False,
-    ):
-        """Return a sampler for tests.
-
-        Uses the real ``MockDWaveSampler`` (Chimera ``[4, 4, 4]`` -> 128 qubits).
-        ``type_name="UnknownSampler"`` returns a sampler whose class name matches
-        neither ``DWaveSampler`` nor ``MockDWaveSampler``, to exercise the
-        ``TypeError`` branch in ``_get_solver_pathstring``. ``sync_response`` is
-        retained for the ``run_iteration`` tests (see note below).
-        """
-        if type_name == "UnknownSampler":
-            return dimod.ExactSolver()  # __name__ == "ExactSolver" -> TypeError branch
-
-        return MockDWaveSampler()
-
-def _make_mock_experiment(lattice, signed_energy_scale=1.0, run_index=0, num_random_instances=1):
-    """Return a lightweight mock Experiment with .lattice and .param."""
-    exp = mock.MagicMock()
-    exp.lattice = lattice
-    exp.param = {
-        "signed_energy_scale": signed_energy_scale,
-        "num_random_instances": num_random_instances,
-    }
-    exp.run_index = run_index
+def _make_experiment(lattice, signed_energy_scale=1.0, num_random_instances=1, sampler=None):
+    config = experiment.ExperimentConfig(
+        signed_energy_scale=signed_energy_scale,
+        num_random_instances=num_random_instances,
+    )
+    if sampler is None:
+        sampler = dimod.ExactSolver()
+    exp = experiment.Experiment(lattice=lattice, sampler=sampler, config=config)
     return exp
 
 

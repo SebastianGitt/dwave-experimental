@@ -26,7 +26,6 @@ from dwave.system.testing import MockDWaveSampler
 from minorminer.utils.parallel_embeddings import find_multiple_embeddings
 from numpy.typing import NDArray
 
-#from dwave.experimental.lattice_utils.lattice.embedded_lattice import EmbeddedLattice
 from dwave.experimental.lattice_utils.lattice.optimize import optimize
 from dwave.experimental.lattice_utils.lattice.orbits import get_orbits
 
