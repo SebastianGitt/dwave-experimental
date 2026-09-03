@@ -37,7 +37,6 @@ from dwave.experimental.multicolor_anneal import (
 )
 from dwave.experimental.shimming import shim_flux_biases
 
-
 def _make_anneal_schedules(
     exp_feature_info: list,
     target_c: float = 0.37,

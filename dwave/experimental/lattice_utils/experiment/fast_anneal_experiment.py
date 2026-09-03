@@ -11,3 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from dataclasses import dataclass
+
+from dwave.experimental.lattice_utils.experiment import ExperimentConfig
+
+__all__ = ['FastAnnealExperimentConfig']
+
+
+@dataclass
+class FastAnnealExperimentConfig(ExperimentConfig):
+    """Configuration class for Fast Anneal Experiments."""
+
+    fast_anneal: bool = True
+    automorph_embeddings: bool = False
+    coupler_damp: float = 0.0
+    anneal_offset_damp: float = 0.0
+    individual_qubit_anneal_offsets: list[float] | None = None
+    logical_software: bool = False

@@ -11,3 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from dwave.experimental.lattice_utils import experiment, lattice, observable
+
+__all__ = ["experiment", "lattice", "observable"]

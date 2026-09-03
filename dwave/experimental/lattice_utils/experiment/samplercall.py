@@ -11,3 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from dataclasses import dataclass, field
+
+import dimod
+
+__all__ = ['SamplerCall']
+
+
+@dataclass
+class SamplerCall:
+    """Data class for managing asynchronous sampler calls."""
+
+    run_index: int
+    bqm: dimod.BQM | None = None
+    shim_data: dict = field(default_factory=dict)
+    logical_bqms: list = field(default_factory=list)
+    sampler_params: dict = field(default_factory=dict)

@@ -11,3 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from dwave.experimental.lattice_utils.lattice.chain import *
+from dwave.experimental.lattice_utils.lattice.embedded_lattice import *
+from dwave.experimental.lattice_utils.lattice.lattice import *
+from dwave.experimental.lattice_utils.lattice.optimize import *
+from dwave.experimental.lattice_utils.lattice.orbits import *
+from dwave.experimental.lattice_utils.lattice.triangular import *
